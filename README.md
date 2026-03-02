@@ -24,6 +24,17 @@ Or from GitHub:
 pip install git+https://github.com/volodymyr-masalitin/torch-cryoesp-calculator.git
 ```
 
+### Python 3.14+
+
+Python 3.14 requires PyTorch nightly for `torch.compile` support:
+
+```sh
+pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
+pip install torch-cryoesp-calculator
+```
+
+With [uv](https://github.com/astral-sh/uv): `uv pip install torch-cryoesp-calculator` (correct PyTorch nightly selected automatically on 3.14+).
+
 ## Usage
 
 Create an `AtomStack` from coordinates and atom names, then compute the ESP volume:
@@ -70,17 +81,6 @@ pytest
 or `python -m pytest`. With coverage: `pytest --cov=cryoesp --cov-report=html`. (With [uv](https://github.com/astral-sh/uv): `uv run pytest`.)
 
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
-
-## Python 3.14+ Installation
-
-**Important**: Python 3.14 requires PyTorch nightly builds for `torch.compile` support. Stable PyTorch does not support `torch.compile` on Python 3.14.
-
-```sh
-pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
-pip install torch-cryoesp-calculator
-```
-
-With [uv](https://github.com/astral-sh/uv): `uv sync` (correct PyTorch nightly selected automatically on 3.14+).
 
 ## Requirements
 
