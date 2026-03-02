@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.9%20--%203.14-blue)](https://python.org)
-[![CI](https://github.com/NextGenCryoET/torch-cryoesp-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/NextGenCryoET/torch-cryoesp-calculator/actions/workflows/ci.yml)
+[![CI](https://github.com/volodymyr-masalitin/torch-cryoesp-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/volodymyr-masalitin/torch-cryoesp-calculator/actions/workflows/ci.yml)
 
 Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D ESP volumes from atom coordinates using Peng 1996 scattering factors.
 
@@ -83,7 +83,7 @@ Tests use `examples/data/8OSK.pdb` (copy from parent repo if needed). If the PDB
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv pip install "git+https://github.com/NextGenCryoET/torch-cryoesp-calculator.git#egg=torch-cryoesp-calculator"
+uv pip install "git+https://github.com/volodymyr-masalitin/torch-cryoesp-calculator.git#egg=torch-cryoesp-calculator"
 ```
 
 The `pyproject.toml` is configured to use PyTorch nightly when using `uv` on Python 3.14+.

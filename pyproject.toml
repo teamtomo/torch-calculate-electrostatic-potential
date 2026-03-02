@@ -38,7 +38,7 @@ dev = [
 ]
 
 [project.urls]
-repository = "https://github.com/NextGenCryoET/torch-cryoesp-calculator"
+repository = "https://github.com/volodymyr-masalitin/torch-cryoesp-calculator"
 
 # https://peps.python.org/pep-0735/ - dependency groups for uv sync --group dev
 [dependency-groups]
