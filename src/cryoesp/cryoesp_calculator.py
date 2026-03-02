@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import torch
 from torch.utils.checkpoint import checkpoint
-from torch.amp import autocast
 from .lattice import Lattice
 from .atom_stack import AtomStack
 from cryoesp.utils.peng_model import ScatteringAttributes
@@ -170,12 +169,7 @@ def _fused_stencil_kernel(
     
     # Generate target indices: Anchor (N,) + Stencil (K,) -> (N, K)
     target_indices = anchor_indices_flat.view(-1, 1) + stencil_indices_flat.view(1, -1)
-    
-    # Ensure values match volume dtype (needed for FP16 autocast)
-    values = values.to(volume.dtype)
     volume.scatter_add_(0, target_indices.view(-1, 1), values.view(-1, 1))
-    
-    return values
 
 
 # Create separate compiled functions for each boolean value to avoid torch.compile specialization issues
@@ -229,10 +223,7 @@ def _fused_multi_volume_kernel(
         + batch_offsets.view(-1, 1)
     )
 
-    # Ensure values match volume dtype (needed for FP16 autocast)
-    values = values.to(volume.dtype)
     volume.scatter_add_(0, target_indices.view(-1, 1), values.view(-1, 1))
-    return values
 
 
 # Create separate compiled functions for each boolean value to avoid torch.compile specialization issues
@@ -263,46 +254,50 @@ _compiled_multi_volume_kernel_point_sampled = torch.compile(_fused_multi_volume_
 
 
 def compute_volume_stencil(
-    atom_stack, 
-    lattice, 
-    B: int = 4096, 
-    per_voxel_averaging: bool = True, 
-    subvolume_mask_in_indices=None, 
-    use_checkpointing=False, 
+    atom_stack,
+    lattice,
+    B: int = 4096,
+    per_voxel_averaging: bool = True,
+    subvolume_mask_in_indices=None,
     verbose=False,
-    use_autocast: bool = False,
 ):
-    # Fallback for complex masks (Stencil assumes full grid logic)
+    """
+    Compute electrostatic potential volume using stencil-based fused kernels.
+
+    Optimized path: uses anchor+stencil pattern and torch.compile. No subvolume
+    masks; for those use compute_volume_over_insertable_matrices.
+
+    Parameters
+    ----------
+    atom_stack : AtomStack
+        Atoms with coordinates, identities, B-factors, occupancies.
+    lattice : Lattice
+        Target lattice (full grid).
+    B : int
+        Batch size for atoms.
+    per_voxel_averaging : bool
+        If True, average over voxel; if False, sample at center.
+    subvolume_mask_in_indices : tensor or None
+        Not supported; must be None.
+    verbose : bool
+        If True, show progress bars.
+
+    Returns
+    -------
+    volume : tensor
+        Shape (Dx, Dy, Dz), dtype lattice.dtype.
+    """
     if subvolume_mask_in_indices is not None:
-        raise NotImplementedError("Subvolume masks are not supported with stencil-based computation. Use compute_volume_over_insertable_matrices instead.") 
-    
-    # Use FP16 dtype when autocast is enabled (works on CPU too for testing, though no speedup)
-    # Handle both string and torch.device object for device
-    device_obj = torch.device(atom_stack.device) if isinstance(atom_stack.device, str) else atom_stack.device
-    use_autocast_cuda = use_autocast and device_obj.type == 'cuda'
-    # Allow FP16 on CPU too for testing (verifies conversion logic works)
-    volume_dtype = torch.float16 if use_autocast else lattice.dtype
-    volume = torch.zeros((torch.prod(lattice.grid_dimensions), 1), dtype=volume_dtype, device=atom_stack.device)
+        raise NotImplementedError(
+            "Subvolume masks are not supported with stencil-based computation. "
+            "Use compute_volume_over_insertable_matrices instead."
+        )
+
+    volume = torch.zeros((torch.prod(lattice.grid_dimensions), 1), dtype=lattice.dtype, device=atom_stack.device)
     scattering_attributes = ScatteringAttributes(atom_stack.device)
-    
-    # Pre-compute stencil (constant shape for all atoms)
-    Dx, Dy, Dz = lattice.grid_dimensions
-    sub_idx = lattice.sublattice_cubic_indices
-    
-    # Flatten stencil indices: x*(Dy*Dz) + y*Dz + z
-    flat_stencil = (
-        sub_idx[..., 0].to(torch.int64) * (Dy * Dz) + 
-        sub_idx[..., 1].to(torch.int64) * Dz + 
-        sub_idx[..., 2].to(torch.int64)
-    ).contiguous()
-    
+
+    flat_stencil = lattice.convert_cubic_index_to_flat_index(lattice.sublattice_cubic_indices).contiguous()
     stencil_coords = lattice.sublattice_coordinates.contiguous()
-    
-    # Constants for clamping
-    zeros_int = torch.zeros(3, dtype=torch.int32, device=atom_stack.device)
-    zeros_float = torch.zeros(3, dtype=lattice.dtype, device=atom_stack.device)
-    max_idx_clamp = lattice.grid_dimensions - lattice.sublattice_dimensions
-    max_coord_clamp = (lattice.voxel_sizes_in_A * max_idx_clamp).to(lattice.dtype)
 
     ensemble_size = atom_stack.atom_coordinates.shape[0]
     num_atoms = atom_stack.atom_coordinates.shape[1]
@@ -318,86 +313,26 @@ def compute_volume_stencil(
             atom_identities_batch = atom_stack.atomic_numbers[indices].flatten()
 
             with torch.no_grad():
-                # Calculate anchor coordinates and indices (avoid generating full (N, K) arrays)
-                closest_cubic, _, closest_centers = lattice.find_closest_voxel_center_coordinates_and_indices(atom_batch)
-                
-                # Clamp translation indices and coordinates
-                trans_idx = (closest_cubic - lattice.sublattice_center_cubic_index).clamp(
-                    min=zeros_int, max=max_idx_clamp
-                )
-                trans_coord = (closest_centers - lattice.sublattice_center_coordinate).clamp(
-                    min=zeros_float, max=max_coord_clamp
-                )
-                
-                # Flatten anchor indices: x*(Dy*Dz) + y*Dz + z
-                anchor_flat = (
-                    trans_idx[..., 0].to(torch.int64) * (Dy * Dz) + 
-                    trans_idx[..., 1].to(torch.int64) * Dz + 
-                    trans_idx[..., 2].to(torch.int64)
-                )
-                
-                # Ensure contiguous memory for fast GPU access
-                anchor_flat = anchor_flat.contiguous()
-                trans_coord = trans_coord.contiguous()
+                anchor_flat, anchor_coord = lattice.get_stencil_anchor_translations(atom_batch)
                 atom_batch = atom_batch.contiguous()
 
             a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
-            # Convert inputs to FP16 when autocast is enabled (avoid dtype switching in kernel)
-            # Works on CPU too for testing (verifies conversion logic)
-            voxel_sizes_use = lattice.voxel_sizes_in_A
-            if use_autocast:
-                atom_batch = atom_batch.to(torch.float16)
-                trans_coord = trans_coord.to(torch.float16)
-                stencil_coords = stencil_coords.to(torch.float16)
-                a_jk = a_jk.to(torch.float16)
-                b_jk = b_jk.to(torch.float16)
-                bfactor_batch = bfactor_batch.to(torch.float16)
-                voxel_sizes_use = lattice.voxel_sizes_in_A.to(torch.float16)
-
-            # Select the appropriate compiled kernel based on per_voxel_averaging
-            # This ensures correct behavior since torch.compile treats Python booleans as compile-time constants
             compiled_kernel = _compiled_stencil_kernel_averaged if per_voxel_averaging else _compiled_stencil_kernel_point_sampled
-            
-            # Use autocast for mixed precision if enabled
-            if use_autocast_cuda:
-                with autocast('cuda'):
-                    if use_checkpointing:
-                        checkpoint(compiled_kernel, atom_batch, trans_coord, anchor_flat, stencil_coords, flat_stencil, volume, a_jk, b_jk, bfactor_batch, occupancy, voxel_sizes_use, use_reentrant=False)
-                    else:
-                        compiled_kernel(
-                            atom_batch,
-                            trans_coord,
-                            anchor_flat,
-                            stencil_coords,
-                            flat_stencil,
-                            volume,
-                            a_jk,
-                            b_jk,
-                            bfactor_batch,
-                            occupancy,
-                            voxel_sizes_use
-                        )
-            else:
-                if use_checkpointing:
-                    checkpoint(compiled_kernel, atom_batch, trans_coord, anchor_flat, stencil_coords, flat_stencil, volume, a_jk, b_jk, bfactor_batch, occupancy, voxel_sizes_use, use_reentrant=False)
-                else:
-                    compiled_kernel(
-                        atom_batch,
-                        trans_coord,
-                        anchor_flat,
-                        stencil_coords,
-                        flat_stencil,
-                        volume,
-                        a_jk,
-                        b_jk,
-                        bfactor_batch,
-                        occupancy,
-                        voxel_sizes_use
-                    )
+            compiled_kernel(
+                atom_batch,
+                anchor_coord,
+                anchor_flat,
+                stencil_coords,
+                flat_stencil,
+                volume,
+                a_jk,
+                b_jk,
+                bfactor_batch,
+                occupancy,
+                lattice.voxel_sizes_in_A,
+            )
 
-    # Convert back to lattice dtype for consistency (FP16 -> FP32 if needed)
-    volume = volume.to(lattice.dtype)
     return volume.reshape(tuple(lattice.grid_dimensions.tolist()))
 
 
@@ -405,8 +340,6 @@ def setup_fast_esp_solver(
     atom_stack,
     lattice,
     per_voxel_averaging: bool = True,
-    use_checkpointing: bool = False,
-    use_autocast: bool = False,
 ):
     """
     Prepare a high-performance multi-volume stencil solver.
@@ -419,18 +352,8 @@ def setup_fast_esp_solver(
     Dx, Dy, Dz = lattice.grid_dimensions
     grid_size = int(torch.prod(lattice.grid_dimensions).item())
 
-    sub_idx = lattice.sublattice_cubic_indices
-    flat_stencil = (
-        sub_idx[..., 0].to(torch.int64) * (Dy * Dz)
-        + sub_idx[..., 1].to(torch.int64) * Dz
-        + sub_idx[..., 2].to(torch.int64)
-    ).contiguous()
+    flat_stencil = lattice.convert_cubic_index_to_flat_index(lattice.sublattice_cubic_indices).contiguous()
     stencil_coords = lattice.sublattice_coordinates.contiguous()
-
-    zeros_int = torch.zeros(3, dtype=torch.int32, device=atom_stack.device)
-    zeros_float = torch.zeros(3, dtype=lattice.dtype, device=atom_stack.device)
-    max_idx_clamp = lattice.grid_dimensions - lattice.sublattice_dimensions
-    max_coord_clamp = (lattice.voxel_sizes_in_A * max_idx_clamp).to(lattice.dtype)
 
     scattering_attributes = ScatteringAttributes(atom_stack.device)
 
@@ -492,122 +415,28 @@ def setup_fast_esp_solver(
         compiled_multi_kernel = _compiled_multi_volume_kernel_averaged if per_voxel_averaging else _compiled_multi_volume_kernel_point_sampled
 
         with torch.no_grad():
-            closest_cubic, _, closest_centers = lattice.find_closest_voxel_center_coordinates_and_indices(
-                atoms_flat
-            )
-            trans_idx = (closest_cubic - lattice.sublattice_center_cubic_index).clamp(
-                min=zeros_int, max=max_idx_clamp
-            )
-            trans_coord = (closest_centers - lattice.sublattice_center_coordinate).clamp(
-                min=zeros_float, max=max_coord_clamp
-            )
-            anchor_flat = (
-                trans_idx[..., 0].to(torch.int64) * (Dy * Dz)
-                + trans_idx[..., 1].to(torch.int64) * Dz
-                + trans_idx[..., 2].to(torch.int64)
-            ).contiguous()
-
-            trans_coord = trans_coord.contiguous()
+            anchor_flat, anchor_coord = lattice.get_stencil_anchor_translations(atoms_flat)
             atoms_flat = atoms_flat.contiguous()
 
         a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
-        # Use FP16 dtype when autocast is enabled (works on CPU too for testing, though no speedup)
-        # Handle both string and torch.device object for device
-        device_obj = torch.device(lattice.device) if isinstance(lattice.device, str) else lattice.device
-        use_autocast_cuda = use_autocast and device_obj.type == 'cuda'
-        # Allow FP16 on CPU too for testing (verifies conversion logic works)
-        volume_dtype = torch.float16 if use_autocast else lattice.dtype
         volume = torch.zeros(
-            (B_volumes * grid_size, 1), dtype=volume_dtype, device=atoms_flat.device
+            (B_volumes * grid_size, 1), dtype=lattice.dtype, device=atoms_flat.device
         )
-
-        # Convert inputs to FP16 when autocast is enabled (avoid dtype switching in kernel)
-        # Works on CPU too for testing (verifies conversion logic)
-        # Use separate variable to avoid shadowing closure variable
-        stencil_coords_converted = stencil_coords
-        voxel_sizes_converted = lattice.voxel_sizes_in_A
-        if use_autocast:
-            atoms_flat = atoms_flat.to(torch.float16)
-            trans_coord = trans_coord.to(torch.float16)
-            a_jk = a_jk.to(torch.float16)
-            b_jk = b_jk.to(torch.float16)
-            bfactor_batch = bfactor_batch.to(torch.float16)
-            occupancy_vec = occupancy_vec.to(torch.float16)
-            stencil_coords_converted = stencil_coords.to(torch.float16)
-            voxel_sizes_converted = lattice.voxel_sizes_in_A.to(torch.float16)
-
-        # Use autocast for mixed precision if enabled (only on CUDA for actual speedup)
-        if use_autocast_cuda:
-            with autocast('cuda'):
-                if use_checkpointing:
-                    checkpoint(
-                        compiled_multi_kernel,
-                        atoms_flat,
-                        trans_coord,
-                        anchor_flat,
-                        batch_offsets,
-                        stencil_coords_converted,
-                        flat_stencil,
-                        volume,
-                        a_jk,
-                        b_jk,
-                        bfactor_batch,
-                        occupancy_vec,
-                        voxel_sizes_converted,
-                        use_reentrant=False,
-                    )
-                else:
-                    compiled_multi_kernel(
-                        atoms_flat,
-                        trans_coord,
-                        anchor_flat,
-                        batch_offsets,
-                        stencil_coords_converted,
-                        flat_stencil,
-                        volume,
-                        a_jk,
-                        b_jk,
-                        bfactor_batch,
-                        occupancy_vec,
-                        voxel_sizes_converted,
-                    )
-        else:
-            if use_checkpointing:
-                checkpoint(
-                    compiled_multi_kernel,
-                    atoms_flat,
-                    trans_coord,
-                    anchor_flat,
-                    batch_offsets,
-                    stencil_coords_converted,
-                    flat_stencil,
-                    volume,
-                    a_jk,
-                    b_jk,
-                    bfactor_batch,
-                    occupancy_vec,
-                    voxel_sizes_converted,
-                    use_reentrant=False,
-                )
-            else:
-                compiled_multi_kernel(
-                    atoms_flat,
-                    trans_coord,
-                    anchor_flat,
-                    batch_offsets,
-                    stencil_coords_converted,
-                    flat_stencil,
-                    volume,
-                    a_jk,
-                    b_jk,
-                    bfactor_batch,
-                    occupancy_vec,
-                    voxel_sizes_converted,
-                )
-
-        # Convert back to lattice dtype for consistency (FP16 -> FP32 if needed)
-        volume = volume.to(lattice.dtype)
+        compiled_multi_kernel(
+            atoms_flat,
+            anchor_coord,
+            anchor_flat,
+            batch_offsets,
+            stencil_coords,
+            flat_stencil,
+            volume,
+            a_jk,
+            b_jk,
+            bfactor_batch,
+            occupancy_vec,
+            lattice.voxel_sizes_in_A,
+        )
         return volume.view(B_volumes, Dx, Dy, Dz)
 
     def compute_batch_from_coords(
@@ -657,83 +486,21 @@ def setup_fast_esp_solver(
         # Select the appropriate compiled kernel based on per_voxel_averaging
         compiled_multi_kernel = _compiled_multi_volume_kernel_averaged if per_voxel_averaging else _compiled_multi_volume_kernel_point_sampled
         
-        # Rest is same as compute_batch
         with torch.no_grad():
-            closest_cubic, _, closest_centers = lattice.find_closest_voxel_center_coordinates_and_indices(
-                atoms_flat
-            )
-            trans_idx = (closest_cubic - lattice.sublattice_center_cubic_index).clamp(
-                min=zeros_int, max=max_idx_clamp
-            )
-            trans_coord = (closest_centers - lattice.sublattice_center_coordinate).clamp(
-                min=zeros_float, max=max_coord_clamp
-            )
-            anchor_flat = (
-                trans_idx[..., 0].to(torch.int64) * (Dy * Dz)
-                + trans_idx[..., 1].to(torch.int64) * Dz
-                + trans_idx[..., 2].to(torch.int64)
-            ).contiguous()
-            trans_coord = trans_coord.contiguous()
+            anchor_flat, anchor_coord = lattice.get_stencil_anchor_translations(atoms_flat)
             atoms_flat = atoms_flat.contiguous()
 
         a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
-        device_obj = torch.device(lattice.device) if isinstance(lattice.device, str) else lattice.device
-        use_autocast_cuda = use_autocast and device_obj.type == 'cuda'
-        volume_dtype = torch.float16 if use_autocast else lattice.dtype
         volume = torch.zeros(
-            (B_volumes * grid_size, 1), dtype=volume_dtype, device=atoms_flat.device
+            (B_volumes * grid_size, 1), dtype=lattice.dtype, device=atoms_flat.device
         )
-
-        stencil_coords_converted = stencil_coords
-        voxel_sizes_converted = lattice.voxel_sizes_in_A
-        if use_autocast:
-            atoms_flat = atoms_flat.to(torch.float16)
-            trans_coord = trans_coord.to(torch.float16)
-            a_jk = a_jk.to(torch.float16)
-            b_jk = b_jk.to(torch.float16)
-            bfactor_batch = bfactor_batch.to(torch.float16)
-            occupancy_vec = occupancy_vec.to(torch.float16)
-            stencil_coords_converted = stencil_coords.to(torch.float16)
-            voxel_sizes_converted = lattice.voxel_sizes_in_A.to(torch.float16)
-
-        if use_autocast_cuda:
-            with autocast('cuda'):
-                if use_checkpointing:
-                    checkpoint(
-                        compiled_multi_kernel,
-                        atoms_flat, trans_coord, anchor_flat, batch_offsets,
-                        stencil_coords_converted, flat_stencil, volume,
-                        a_jk, b_jk, bfactor_batch, occupancy_vec,
-                        voxel_sizes_converted,
-                        use_reentrant=False,
-                    )
-                else:
-                    compiled_multi_kernel(
-                        atoms_flat, trans_coord, anchor_flat, batch_offsets,
-                        stencil_coords_converted, flat_stencil, volume,
-                        a_jk, b_jk, bfactor_batch, occupancy_vec,
-                        voxel_sizes_converted,
-                    )
-        else:
-            if use_checkpointing:
-                checkpoint(
-                    compiled_multi_kernel,
-                    atoms_flat, trans_coord, anchor_flat, batch_offsets,
-                    stencil_coords_converted, flat_stencil, volume,
-                    a_jk, b_jk, bfactor_batch, occupancy_vec,
-                    voxel_sizes_converted,
-                    use_reentrant=False,
-                )
-            else:
-                compiled_multi_kernel(
-                    atoms_flat, trans_coord, anchor_flat, batch_offsets,
-                    stencil_coords_converted, flat_stencil, volume,
-                    a_jk, b_jk, bfactor_batch, occupancy_vec,
-                    voxel_sizes_converted,
-                )
-
-        volume = volume.to(lattice.dtype)
+        compiled_multi_kernel(
+            atoms_flat, anchor_coord, anchor_flat, batch_offsets,
+            stencil_coords, flat_stencil, volume,
+            a_jk, b_jk, bfactor_batch, occupancy_vec,
+            lattice.voxel_sizes_in_A,
+        )
         return volume.view(B_volumes, Dx, Dy, Dz)
 
     return compute_batch, compute_batch_from_coords

@@ -129,7 +129,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -149,7 +148,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -167,7 +165,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -186,7 +183,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -203,7 +199,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         volume_point = compute_volume_over_insertable_matrices(
@@ -212,7 +207,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=False,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume_avg.shape == volume_point.shape
@@ -237,7 +231,6 @@ class TestESPCalculatorStandard:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -262,7 +255,6 @@ class TestESPCalculatorFusedSingle:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -282,7 +274,6 @@ class TestESPCalculatorFusedSingle:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -300,7 +291,6 @@ class TestESPCalculatorFusedSingle:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -319,7 +309,6 @@ class TestESPCalculatorFusedSingle:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume.shape == tuple(small_lattice.grid_dimensions.tolist())
@@ -336,7 +325,6 @@ class TestESPCalculatorFusedSingle:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         volume_point = compute_volume_stencil(
@@ -345,7 +333,6 @@ class TestESPCalculatorFusedSingle:
             B=32,
             per_voxel_averaging=False,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume_avg.shape == volume_point.shape
@@ -366,7 +353,6 @@ class TestESPCalculatorFusedSingle:
                 B=32,
                 per_voxel_averaging=True,
                 subvolume_mask_in_indices=mask,
-                use_checkpointing=False,
                 verbose=False,
             )
             assert False, "Should have raised NotImplementedError"
@@ -390,7 +376,6 @@ class TestESPCalculatorFusedMultiple:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes = compute_batch([small_atom_stack])
         assert volumes.shape == (1,) + tuple(small_lattice.grid_dimensions.tolist())
@@ -408,7 +393,6 @@ class TestESPCalculatorFusedMultiple:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes = compute_batch([small_atom_stack])
         assert volumes.shape == (1,) + tuple(small_lattice.grid_dimensions.tolist())
@@ -437,7 +421,6 @@ class TestESPCalculatorFusedMultiple:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes = compute_batch([stack1, stack2])
         assert volumes.shape == (2,) + tuple(small_lattice.grid_dimensions.tolist())
@@ -456,7 +439,6 @@ class TestESPCalculatorFusedMultiple:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes = compute_batch([batched_stack1, batched_stack2])
         assert volumes.shape == (2,) + tuple(small_lattice.grid_dimensions.tolist())
@@ -476,7 +458,6 @@ class TestESPCalculatorFusedMultiple:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes = compute_batch([stack1, stack2])
         assert volumes.shape == (2,) + tuple(small_lattice.grid_dimensions.tolist())
@@ -491,13 +472,11 @@ class TestESPCalculatorFusedMultiple:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         compute_batch_point, _ = setup_fast_esp_solver(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=False,
-            use_checkpointing=False,
         )
         volumes_avg = compute_batch_avg([small_atom_stack])
         volumes_point = compute_batch_point([small_atom_stack])
@@ -525,7 +504,6 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         volume_fused = compute_volume_stencil(
@@ -534,7 +512,6 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume_standard.shape == volume_fused.shape
@@ -554,14 +531,12 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         compute_batch, _ = setup_fast_esp_solver(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes_fused = compute_batch([small_atom_stack])
         volume_fused = volumes_fused[0]
@@ -582,14 +557,12 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         compute_batch, _ = setup_fast_esp_solver(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes_fused = compute_batch([small_atom_stack])
         volume_fused_multiple = volumes_fused[0]
@@ -619,7 +592,6 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         volume_batched = compute_volume_over_insertable_matrices(
@@ -628,7 +600,6 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert torch.allclose(volume1, volume_batched, atol=1e-4)
@@ -653,7 +624,6 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         volume_batched = compute_volume_over_insertable_matrices(
@@ -662,7 +632,6 @@ class TestESPCalculatorConsistency:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert torch.allclose(volume_single, volume_batched, atol=1e-5)
@@ -782,7 +751,6 @@ class TestExampleLatticeFusedVsNonfused:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         volume_fused = compute_volume_stencil(
@@ -791,99 +759,10 @@ class TestExampleLatticeFusedVsNonfused:
             B=32,
             per_voxel_averaging=True,
             subvolume_mask_in_indices=None,
-            use_checkpointing=False,
             verbose=False,
         )
         assert volume_nonfused.shape == volume_fused.shape
         assert volume_nonfused.shape == tuple(lattice.grid_dimensions.tolist())
-
-
-# ---------------------------------------------------------------------------
-# TestESPCalculatorAutocast
-# ---------------------------------------------------------------------------
-
-class TestESPCalculatorAutocast:
-    """Tests for autocast (mixed precision FP16) support in ESP calculators."""
-
-    def test_compute_volume_stencil_with_autocast_fp16(self):
-        small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
-        small_atom_stack = AtomStack(
-            atom_coordinates=small_atom_stack.atom_coordinates.to("cpu"),
-            atom_names=small_atom_stack.atom_names,
-            bfactors=small_atom_stack.bfactors.to("cpu") if small_atom_stack.bfactors is not None else None,
-            device="cpu",
-            occupancies=small_atom_stack.occupancies.to("cpu") if small_atom_stack.occupancies is not None else None,
-        )
-        small_lattice = get_small_lattice(small_atom_stack)
-        small_lattice.device = torch.device("cpu")
-
-        volume_fp32 = compute_volume_stencil(
-            atom_stack=small_atom_stack,
-            lattice=small_lattice,
-            B=32,
-            per_voxel_averaging=True,
-            subvolume_mask_in_indices=None,
-            use_checkpointing=False,
-            verbose=False,
-            use_autocast=False,
-        )
-        volume_autocast = compute_volume_stencil(
-            atom_stack=small_atom_stack,
-            lattice=small_lattice,
-            B=32,
-            per_voxel_averaging=True,
-            subvolume_mask_in_indices=None,
-            use_checkpointing=False,
-            verbose=False,
-            use_autocast=True,
-        )
-        assert volume_fp32.shape == volume_autocast.shape
-        assert volume_autocast.dtype == torch.float32
-        max_diff = (volume_fp32 - volume_autocast).abs().max()
-        mean_diff = (volume_fp32 - volume_autocast).abs().mean()
-        assert max_diff < 1e-2, f"Max difference too large: {max_diff:.6f}"
-        assert mean_diff < 1e-3, f"Mean difference too large: {mean_diff:.6f}"
-        assert volume_autocast.sum() > 0
-
-    def test_setup_fast_esp_solver_with_autocast_fp16(self):
-        small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
-        small_atom_stack = AtomStack(
-            atom_coordinates=small_atom_stack.atom_coordinates.to("cpu"),
-            atom_names=small_atom_stack.atom_names,
-            bfactors=small_atom_stack.bfactors.to("cpu") if small_atom_stack.bfactors is not None else None,
-            device="cpu",
-            occupancies=small_atom_stack.occupancies.to("cpu") if small_atom_stack.occupancies is not None else None,
-        )
-        small_lattice = get_small_lattice(small_atom_stack)
-        small_lattice.device = torch.device("cpu")
-
-        compute_batch_fp32, _ = setup_fast_esp_solver(
-            atom_stack=small_atom_stack,
-            lattice=small_lattice,
-            per_voxel_averaging=True,
-            use_checkpointing=False,
-            use_autocast=False,
-        )
-        compute_batch_autocast, _ = setup_fast_esp_solver(
-            atom_stack=small_atom_stack,
-            lattice=small_lattice,
-            per_voxel_averaging=True,
-            use_checkpointing=False,
-            use_autocast=True,
-        )
-        volumes_fp32 = compute_batch_fp32([small_atom_stack])
-        volumes_autocast = compute_batch_autocast([small_atom_stack])
-        assert volumes_fp32.shape == volumes_autocast.shape
-        assert volumes_autocast[0].dtype == torch.float32
-        max_diff = (volumes_fp32[0] - volumes_autocast[0]).abs().max()
-        mean_diff = (volumes_fp32[0] - volumes_autocast[0]).abs().mean()
-        assert max_diff < 1e-2, f"Max difference too large: {max_diff:.6f}"
-        assert mean_diff < 1e-3, f"Mean difference too large: {mean_diff:.6f}"
-        assert volumes_autocast[0].sum() > 0
 
 
 # ---------------------------------------------------------------------------
@@ -902,7 +781,6 @@ class TestComputeBatchFromCoords:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         volumes_method1 = compute_batch([small_atom_stack])
         coords = small_atom_stack.atom_coordinates
@@ -925,7 +803,6 @@ class TestComputeBatchFromCoords:
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
-            use_checkpointing=False,
         )
         coords = small_atom_stack.atom_coordinates
         B_ens, N, _ = coords.shape

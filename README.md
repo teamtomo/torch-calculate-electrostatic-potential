@@ -71,7 +71,7 @@ Or with coverage:
 uv run pytest --cov=cryoesp --cov-report=html
 ```
 
-Tests use `examples/data/8OSK.pdb` (copy from parent repo if needed). If the PDB is missing, tests that require it are skipped.
+Tests require `examples/data/8OSK.pdb` (copy from parent repo if needed). If the PDB is missing, tests that need it will fail with a clear error.
 
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
 

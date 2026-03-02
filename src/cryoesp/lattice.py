@@ -98,12 +98,40 @@ class Lattice:
         self.sublattice_cubic_indices = cubic_indices.to(torch.int32)
 
     def convert_cubic_index_to_flat_index(self, indices: torch.Tensor) -> torch.Tensor:
+        """Convert (..., 3) cubic indices to (...) flat indices (row-major: x slowest, z fastest)."""
         Dx, Dy, Dz = self.grid_dimensions
         return (
             indices[..., 0].to(torch.int64) * (Dy * Dz)
             + indices[..., 1].to(torch.int64) * Dz
             + indices[..., 2].to(torch.int64)
         )
+
+    def get_stencil_anchor_translations(self, points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        For stencil-based volume code: return clamped anchor (flat indices, coordinates)
+        so that anchor + stencil stays inside the grid. Same clamp as in extract_closest_submatrices.
+        Returns (anchor_flat, anchor_coord) with shapes (N,) and (N, 3).
+        """
+        (
+            closest_voxel_cubic_indices,
+            _,
+            closest_voxel_centers,
+        ) = self.find_closest_voxel_center_coordinates_and_indices(points)
+        trans_idx = closest_voxel_cubic_indices - self.sublattice_center_cubic_index
+        trans_idx = trans_idx.clamp(
+            min=torch.zeros(3, dtype=torch.int32, device=self.device),
+            max=self.grid_dimensions - self.sublattice_dimensions,
+        )
+        trans_coord = closest_voxel_centers - self.sublattice_center_coordinate
+        max_trans = (self.voxel_sizes_in_A * (self.grid_dimensions - self.sublattice_dimensions)).to(
+            self.dtype
+        )
+        trans_coord = trans_coord.clamp(
+            min=torch.zeros(3, device=self.device, dtype=self.dtype),
+            max=max_trans,
+        )
+        anchor_flat = self.convert_cubic_index_to_flat_index(trans_idx)
+        return anchor_flat.contiguous(), trans_coord.contiguous()
 
     def flat_indices_to_boolean_mask(self, flat_indices: torch.Tensor) -> torch.Tensor:
         Dx, Dy, Dz = self.grid_dimensions
