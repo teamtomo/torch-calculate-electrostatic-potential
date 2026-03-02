@@ -61,7 +61,7 @@ packages = ["src/cryoesp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--color=yes"
+addopts = "--color=yes -v"
 filterwarnings = [
     # Ignore PyTorch deprecation warnings (from PyTorch's internal code)
     "ignore::DeprecationWarning:torch.jit",

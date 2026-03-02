@@ -18,10 +18,10 @@ Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D
 pip install torch-cryoesp-calculator
 ```
 
-Or from source:
+Or from GitHub:
 
 ```sh
-pip install -e .
+pip install git+https://github.com/volodymyr-masalitin/torch-cryoesp-calculator.git
 ```
 
 ## Usage
