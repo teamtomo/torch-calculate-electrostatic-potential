@@ -69,8 +69,6 @@ pytest
 
 or `python -m pytest`. With coverage: `pytest --cov=cryoesp --cov-report=html`. (With [uv](https://github.com/astral-sh/uv): `uv run pytest`.)
 
-Tests require `examples/data/8OSK.pdb` (copy from parent repo if needed). If the PDB is missing, tests fail with a clear error so the file must be provided.
-
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
 
 ## Python 3.14+ Installation
@@ -82,7 +80,7 @@ pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
 pip install torch-cryoesp-calculator
 ```
 
-With [uv](https://github.com/astral-sh/uv), the correct PyTorch nightly is selected automatically on Python 3.14+.
+With [uv](https://github.com/astral-sh/uv): `uv sync` (correct PyTorch nightly selected automatically on 3.14+).
 
 ## Requirements
 
