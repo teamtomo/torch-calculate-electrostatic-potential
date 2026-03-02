@@ -68,7 +68,10 @@ def get_small_atom_stack():
     test_data_dir = get_test_data_dir()
     pdb_file = test_data_dir / "8OSK.pdb"
     if not pdb_file.exists():
-        return None
+        raise FileNotFoundError(
+            "Test data required: examples/data/8OSK.pdb not found. "
+            "Provide this file to run tests (e.g. copy from parent repo)."
+        )
 
     atom_stack = _load_atom_stack_from_pdb(pdb_file, device="cpu")
     N = min(30, atom_stack.atom_coordinates.shape[1])
@@ -120,8 +123,6 @@ class TestESPCalculatorStandard:
 
     def test_single_batch_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume = compute_volume_over_insertable_matrices(
             atom_stack=small_atom_stack,
@@ -138,8 +139,6 @@ class TestESPCalculatorStandard:
 
     def test_single_batch_with_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
         volume = compute_volume_over_insertable_matrices(
@@ -155,8 +154,6 @@ class TestESPCalculatorStandard:
 
     def test_multiple_batches_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         volume = compute_volume_over_insertable_matrices(
@@ -172,8 +169,6 @@ class TestESPCalculatorStandard:
 
     def test_multiple_batches_with_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         batched_stack.occupancies = torch.tensor([0.5, 0.3, 0.2], device="cpu")
@@ -190,8 +185,6 @@ class TestESPCalculatorStandard:
 
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume_avg = compute_volume_over_insertable_matrices(
             atom_stack=small_atom_stack,
@@ -216,8 +209,6 @@ class TestESPCalculatorStandard:
 
     def test_empty_atom_stack(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         empty_stack = AtomStack(
             atom_coordinates=torch.zeros((1, 0, 3), dtype=torch.float32),
@@ -246,8 +237,6 @@ class TestESPCalculatorFusedSingle:
 
     def test_single_batch_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume = compute_volume_stencil(
             atom_stack=small_atom_stack,
@@ -264,8 +253,6 @@ class TestESPCalculatorFusedSingle:
 
     def test_single_batch_with_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
         volume = compute_volume_stencil(
@@ -281,8 +268,6 @@ class TestESPCalculatorFusedSingle:
 
     def test_multiple_batches_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         volume = compute_volume_stencil(
@@ -298,8 +283,6 @@ class TestESPCalculatorFusedSingle:
 
     def test_multiple_batches_with_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         batched_stack.occupancies = torch.tensor([0.5, 0.3, 0.2], device="cpu")
@@ -316,8 +299,6 @@ class TestESPCalculatorFusedSingle:
 
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume_avg = compute_volume_stencil(
             atom_stack=small_atom_stack,
@@ -342,8 +323,6 @@ class TestESPCalculatorFusedSingle:
 
     def test_subvolume_mask_not_supported(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         mask = torch.tensor([0, 1, 2, 3], dtype=torch.int64)
         try:
@@ -369,8 +348,6 @@ class TestESPCalculatorFusedMultiple:
 
     def test_single_volume_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         compute_batch, _ = setup_fast_esp_solver(
             atom_stack=small_atom_stack,
@@ -385,8 +362,6 @@ class TestESPCalculatorFusedMultiple:
 
     def test_single_volume_with_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
         compute_batch, _ = setup_fast_esp_solver(
@@ -400,8 +375,6 @@ class TestESPCalculatorFusedMultiple:
 
     def test_multiple_volumes_same_structure(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         stack1 = AtomStack(
             atom_coordinates=small_atom_stack.atom_coordinates.clone(),
@@ -428,8 +401,6 @@ class TestESPCalculatorFusedMultiple:
 
     def test_multiple_volumes_with_batches(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack1 = small_atom_stack.replicate_ensemble(B=2)
         batched_stack1.occupancies = torch.tensor([0.6, 0.4], device="cpu")
@@ -447,8 +418,6 @@ class TestESPCalculatorFusedMultiple:
 
     def test_multiple_volumes_different_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         stack1 = small_atom_stack.replicate_ensemble(B=2)
         stack1.occupancies = torch.tensor([0.6, 0.4], device="cpu")
@@ -465,8 +434,6 @@ class TestESPCalculatorFusedMultiple:
 
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         compute_batch_avg, _ = setup_fast_esp_solver(
             atom_stack=small_atom_stack,
@@ -495,8 +462,6 @@ class TestESPCalculatorConsistency:
 
     def test_standard_vs_fused_single(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume_standard = compute_volume_over_insertable_matrices(
             atom_stack=small_atom_stack,
@@ -522,8 +487,6 @@ class TestESPCalculatorConsistency:
 
     def test_standard_vs_fused_multiple_single_volume(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume_standard = compute_volume_over_insertable_matrices(
             atom_stack=small_atom_stack,
@@ -548,8 +511,6 @@ class TestESPCalculatorConsistency:
 
     def test_fused_single_vs_fused_multiple_single_volume(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         volume_fused_single = compute_volume_stencil(
             atom_stack=small_atom_stack,
@@ -574,8 +535,6 @@ class TestESPCalculatorConsistency:
 
     def test_same_structure_different_occupancies(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         stack1 = AtomStack(
             atom_coordinates=small_atom_stack.atom_coordinates.clone(),
@@ -606,8 +565,6 @@ class TestESPCalculatorConsistency:
 
     def test_batched_ensemble_consistency(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         single_stack = AtomStack(
             atom_coordinates=small_atom_stack.atom_coordinates.clone(),
@@ -646,8 +603,6 @@ class TestAtomStackReplicateEnsemble:
 
     def test_replicate_single_to_multiple(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         assert small_atom_stack.atom_coordinates.shape[0] == 1
         replicated = small_atom_stack.replicate_ensemble(B=3)
         assert replicated.atom_coordinates.shape[0] == 3
@@ -659,8 +614,6 @@ class TestAtomStackReplicateEnsemble:
 
     def test_replicate_preserves_bfactors(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         replicated = small_atom_stack.replicate_ensemble(B=2)
         if small_atom_stack.bfactors is not None:
             assert replicated.bfactors is not None
@@ -670,8 +623,6 @@ class TestAtomStackReplicateEnsemble:
 
     def test_replicate_occupancies_normalized(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         replicated = small_atom_stack.replicate_ensemble(B=3)
         assert replicated.occupancies.shape[0] == 3
         assert torch.allclose(replicated.occupancies.sum(), torch.tensor(1.0))
@@ -679,15 +630,11 @@ class TestAtomStackReplicateEnsemble:
 
     def test_replicate_preserves_atom_names(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         replicated = small_atom_stack.replicate_ensemble(B=2)
         assert replicated.atom_names == small_atom_stack.atom_names
 
     def test_replicate_requires_single_batch(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         multi_batch = small_atom_stack.replicate_ensemble(B=2)
         try:
             multi_batch.replicate_ensemble(B=3)
@@ -697,8 +644,6 @@ class TestAtomStackReplicateEnsemble:
 
     def test_replicate_with_different_B_values(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         for B in [1, 2, 3, 5, 10]:
             replicated = small_atom_stack.replicate_ensemble(B=B)
             assert replicated.atom_coordinates.shape[0] == B
@@ -717,7 +662,10 @@ class TestExampleLatticeFusedVsNonfused:
         test_data_dir = get_test_data_dir()
         pdb_file = test_data_dir / "8OSK.pdb"
         if not pdb_file.exists():
-            return
+            raise FileNotFoundError(
+                "Test data required: examples/data/8OSK.pdb not found. "
+                "Provide this file to run tests (e.g. copy from parent repo)."
+            )
 
         atom_stack = _load_atom_stack_from_pdb(pdb_file, device="cpu")
         N = min(20, atom_stack.atom_coordinates.shape[1])
@@ -774,8 +722,6 @@ class TestComputeBatchFromCoords:
 
     def test_compute_batch_from_coords_matches_compute_batch(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         compute_batch, compute_batch_from_coords = setup_fast_esp_solver(
             atom_stack=small_atom_stack,
@@ -796,8 +742,6 @@ class TestComputeBatchFromCoords:
 
     def test_compute_batch_from_coords_multiple_hypotheses(self):
         small_atom_stack = get_small_atom_stack()
-        if small_atom_stack is None:
-            return
         small_lattice = get_small_lattice(small_atom_stack)
         compute_batch, compute_batch_from_coords = setup_fast_esp_solver(
             atom_stack=small_atom_stack,

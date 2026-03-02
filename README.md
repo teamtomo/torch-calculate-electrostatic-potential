@@ -61,17 +61,15 @@ volume = compute_volume_over_insertable_matrices(
 
 ## Testing
 
-```sh
-uv run pytest
-```
-
-Or with coverage:
+From the repo root (with the package and test deps installed):
 
 ```sh
-uv run pytest --cov=cryoesp --cov-report=html
+pytest
 ```
 
-Tests require `examples/data/8OSK.pdb` (copy from parent repo if needed). If the PDB is missing, tests that need it will fail with a clear error.
+or `python -m pytest`. With coverage: `pytest --cov=cryoesp --cov-report=html`. (With [uv](https://github.com/astral-sh/uv): `uv run pytest`.)
+
+Tests require `examples/data/8OSK.pdb` (copy from parent repo if needed). If the PDB is missing, tests fail with a clear error so the file must be provided.
 
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
 
@@ -79,21 +77,12 @@ Tests require `examples/data/8OSK.pdb` (copy from parent repo if needed). If the
 
 **Important**: Python 3.14 requires PyTorch nightly builds for `torch.compile` support. Stable PyTorch does not support `torch.compile` on Python 3.14.
 
-### Using `uv` (Recommended)
-
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv pip install "git+https://github.com/volodymyr-masalitin/torch-cryoesp-calculator.git#egg=torch-cryoesp-calculator"
-```
-
-The `pyproject.toml` is configured to use PyTorch nightly when using `uv` on Python 3.14+.
-
-### Using `pip` (Manual)
-
 ```sh
 pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
 pip install torch-cryoesp-calculator
 ```
+
+With [uv](https://github.com/astral-sh/uv), the correct PyTorch nightly is selected automatically on Python 3.14+.
 
 ## Requirements
 
