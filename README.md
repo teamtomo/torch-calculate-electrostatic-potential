@@ -65,14 +65,14 @@ volume = compute_volume_over_insertable_matrices(
 
 ## Testing
 
-From a cloned repo:
+Install the package together with test dependencies:
 
 ```sh
-pip install pytest pytest-cov
+pip install "torch-calculate-electrostatic-potential[test]" @ git+https://github.com/teamtomo/torch-calculate-electrostatic-potential.git
 pytest
 ```
 
-With coverage: `pytest --cov=cryoesp --cov-report=html`. (With [uv](https://github.com/astral-sh/uv): `uv run pytest`.)
+With coverage: `pytest --cov=cryoesp --cov-report=html`.
 
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
 
