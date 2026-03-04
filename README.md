@@ -68,6 +68,7 @@ volume = compute_volume_over_insertable_matrices(
 From a cloned repo:
 
 ```sh
+pip install pytest pytest-cov
 pytest
 ```
 

@@ -38,6 +38,10 @@ test = [
     "setuptools",
 ]
 
+[dependency-groups]
+test = ["pytest>=7.0", "pytest-cov", "setuptools"]
+dev = [{ include-group = "test" }]
+
 [project.urls]
 repository = "https://github.com/teamtomo/torch-calculate-electrostatic-potential"
 
