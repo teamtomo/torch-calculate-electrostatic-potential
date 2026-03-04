@@ -4,8 +4,8 @@ import torch
 from torch.utils.checkpoint import checkpoint
 from .lattice import Lattice
 from .atom_stack import AtomStack
-from cryoesp.utils.peng_model import ScatteringAttributes
-from cryoesp.utils.torch_utils import batched_with_indices
+from .utils.peng_model import ScatteringAttributes
+from .utils.torch_utils import batched_with_indices
 from tqdm import tqdm
 
 

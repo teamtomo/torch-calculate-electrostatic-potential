@@ -1,10 +1,10 @@
-"""espcalculator: public API for the ESP calculator."""
+"""espcalculator: Cryo-EM Electrostatic Potential computation with PyTorch."""
 
 from importlib.metadata import PackageNotFoundError, version
 
-from cryoesp.atom_stack import AtomStack
-from cryoesp.lattice import Lattice
-from cryoesp.cryoesp_calculator import (
+from .atom_stack import AtomStack
+from .lattice import Lattice
+from .cryoesp_calculator import (
     compute_volume_over_insertable_matrices,
     compute_volume_stencil,
     setup_fast_esp_solver,
@@ -23,4 +23,3 @@ __all__ = [
     "setup_fast_esp_solver",
     "__version__",
 ]
-

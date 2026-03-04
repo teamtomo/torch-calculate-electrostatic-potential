@@ -57,7 +57,7 @@ index = "pytorch-nightly"
 marker = "python_version >= '3.14'"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cryoesp", "src/espcalculator"]
+packages = ["src/espcalculator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -69,4 +69,4 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["espcalculator", "cryoesp"]
+source = ["espcalculator"]
