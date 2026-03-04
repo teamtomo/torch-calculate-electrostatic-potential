@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 
-def compute_volume_over_insertable_matrices(
+def compute_esp(
         atom_stack: AtomStack,
         lattice: Lattice,
         B: int = 64,
@@ -20,20 +20,33 @@ def compute_volume_over_insertable_matrices(
         verbose: bool = False,
     ) -> torch.Tensor:
     """
-    Compute electrostatic potential volume over lattice from atom stack.
-    
-    Parameters:
-    - atom_stack: Atoms with coordinates, identities, B-factors, and occupancies
-    - lattice: Target lattice for volume computation
-    - B: Batch size for atoms (performance tuning)
-    - per_voxel_averaging: If True, average signal over voxel; if False, use center point
-    - subvolume_mask_in_indices: Optional indices (in 'ij' order) for compact subvolume. Shape (M,)
-    - use_checkpointing: If True, use gradient checkpointing to reduce memory usage (trades compute for memory).
-                        Useful when gradients are needed. If False, faster but uses more memory.
-    - verbose: If True, show tqdm progress bars. Default is False.
-    
-    Returns:
-    - volume: Full grid (D,D,D) or compact subvolume (M,)
+    Compute 3D ESP (electrostatic potential) over the lattice from an atom stack.
+
+    Dense formulation with optional subvolume masks. Backprop through this path is
+    memory-intensive; for gradient-based optimization (e.g. density alignment)
+    use `compute_esp_stencil_compiled` instead (faster and lower VRAM).
+
+    Parameters
+    ----------
+    atom_stack : AtomStack
+        Atoms with coordinates, identities, B-factors, and occupancies.
+    lattice : Lattice
+        Target lattice for ESP computation.
+    B : int
+        Batch size for atoms (performance tuning).
+    per_voxel_averaging : bool
+        If True, average signal over voxel; if False, use center point.
+    subvolume_mask_in_indices : tensor or None
+        Optional indices (in 'ij' order) for compact subvolume. Shape (M,).
+    use_checkpointing : bool
+        If True, use gradient checkpointing (trades compute for memory).
+    verbose : bool
+        If True, show tqdm progress bars.
+
+    Returns
+    -------
+    esp_volume : tensor
+        Full grid (D, D, D) or compact subvolume (M,).
     """
 
     # Initialize volume and index mapping
@@ -111,7 +124,7 @@ def compute_volume_over_insertable_matrices(
 
 
 # ============================================================================
-# Optimized stencil-based volume computation with fused kernels
+# Optimized stencil-based ESP computation (torch.compile, backprop-friendly)
 # ============================================================================
 
 def _compute_density_kernel(atom_coords, voxel_coords, a, b, B_val, occ, voxel_sizes, is_averaged):
@@ -253,7 +266,7 @@ _compiled_multi_volume_kernel_averaged = torch.compile(_fused_multi_volume_kerne
 _compiled_multi_volume_kernel_point_sampled = torch.compile(_fused_multi_volume_kernel_point_sampled, mode="max-autotune", dynamic=True)
 
 
-def compute_volume_stencil(
+def compute_esp_stencil_compiled(
     atom_stack,
     lattice,
     B: int = 4096,
@@ -262,10 +275,11 @@ def compute_volume_stencil(
     verbose=False,
 ):
     """
-    Compute electrostatic potential volume using stencil-based fused kernels.
+    Compute 3D ESP using compiled stencil-based fused kernels.
 
-    Optimized path: uses anchor+stencil pattern and torch.compile. No subvolume
-    masks; for those use compute_volume_over_insertable_matrices.
+    Specifically designed for backprop VRAM optimization. Uses anchor+stencil
+    pattern and torch.compile. No subvolume masks; for those use
+    compute_esp.
 
     Parameters
     ----------
@@ -284,13 +298,13 @@ def compute_volume_stencil(
 
     Returns
     -------
-    volume : tensor
+    esp_volume : tensor
         Shape (Dx, Dy, Dz), dtype lattice.dtype.
     """
     if subvolume_mask_in_indices is not None:
         raise NotImplementedError(
             "Subvolume masks are not supported with stencil-based computation. "
-            "Use compute_volume_over_insertable_matrices instead."
+            "Use compute_esp instead."
         )
 
     volume = torch.zeros((torch.prod(lattice.grid_dimensions), 1), dtype=lattice.dtype, device=atom_stack.device)
@@ -336,18 +350,24 @@ def compute_volume_stencil(
     return volume.reshape(tuple(lattice.grid_dimensions.tolist()))
 
 
-def setup_fast_esp_solver(
+def setup_esp_batch_calculator(
     atom_stack,
     lattice,
     per_voxel_averaging: bool = True,
 ):
     """
-    Prepare a high-performance multi-volume stencil solver.
+    Prepare a high-performance batch ESP calculator (stencil-based).
 
-    Returns a function that computes multiple volumes in a single batch.
-    Input to the returned `compute_batch` MUST be a list of AtomStack, one per output volume.
-    Each AtomStack may have an ensemble axis (B_ensemble, N, 3); all ensemble members are
-    accumulated into that volume using its occupancies. List length == number of volumes.
+    Preferred when the forward pass is run many times (e.g. density alignment):
+    backprop-friendly and lower VRAM than the dense path.
+
+    Returns two callables for multi-volume ESP:
+
+    - `compute_batch(atom_stacks)`: list of `AtomStack`, one per output volume.
+      Each `AtomStack` has shape `(B_ensemble, N, 3)`; all ensemble members are
+      accumulated into that volume using its occupancies.
+    - `compute_batch_from_coords(coords_batch, bfactors, atomic_numbers, occupancies)`:
+      fully vectorized variant that works directly on tensors.
     """
     Dx, Dy, Dz = lattice.grid_dimensions
     grid_size = int(torch.prod(lattice.grid_dimensions).item())
