@@ -18,9 +18,9 @@ from pathlib import Path
 
 import gemmi
 
-from cryoesp.atom_stack import AtomStack
-from cryoesp.lattice import Lattice
-from cryoesp.cryoesp_calculator import (
+from espcalculator import (
+    AtomStack,
+    Lattice,
     compute_volume_over_insertable_matrices,
     compute_volume_stencil,
     setup_fast_esp_solver,

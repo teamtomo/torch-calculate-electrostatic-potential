@@ -34,8 +34,7 @@ Create an `AtomStack` from coordinates and atom names, then compute the ESP volu
 
 ```python
 import torch
-from cryoesp import AtomStack, Lattice
-from cryoesp.cryoesp_calculator import compute_volume_over_insertable_matrices
+from espcalculator import AtomStack, Lattice, compute_volume_over_insertable_matrices
 
 # Create AtomStack (coordinates in Angstroms, shape [B, N, 3])
 coords = torch.tensor([[[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [0.0, 1.5, 0.0]]])  # 3 atoms
@@ -72,7 +71,7 @@ pip install "torch-calculate-electrostatic-potential[test]" @ git+https://github
 pytest
 ```
 
-With coverage: `pytest --cov=cryoesp --cov-report=html`.
+With coverage: `pytest --cov=espcalculator --cov-report=html`.
 
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
 
