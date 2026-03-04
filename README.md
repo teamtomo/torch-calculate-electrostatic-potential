@@ -1,8 +1,8 @@
-# torch-cryoesp-calculator
+# torch-calculate-electrostatic-potential
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.9%20--%203.14-blue)](https://python.org)
-[![CI](https://github.com/volodymyr-masalitin/torch-cryoesp-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/volodymyr-masalitin/torch-cryoesp-calculator/actions/workflows/ci.yml)
+[![CI](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml/badge.svg)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml)
 
 Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D ESP volumes from atom coordinates using Peng 1996 scattering factors.
 
@@ -15,25 +15,18 @@ Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D
 ## Installation
 
 ```sh
-pip install torch-cryoesp-calculator
-```
-
-Or from GitHub:
-
-```sh
-pip install git+https://github.com/volodymyr-masalitin/torch-cryoesp-calculator.git
+# From GitHub (main branch)
+pip install git+https://github.com/teamtomo/torch-calculate-electrostatic-potential.git
 ```
 
 ### Python 3.14+
 
-Python 3.14 requires PyTorch nightly for `torch.compile` support:
-
 ```sh
 pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
-pip install torch-cryoesp-calculator
+pip install git+https://github.com/teamtomo/torch-calculate-electrostatic-potential.git
 ```
 
-With [uv](https://github.com/astral-sh/uv): `uv pip install torch-cryoesp-calculator` (correct PyTorch nightly selected automatically on 3.14+).
+With [uv](https://github.com/astral-sh/uv): `uv pip install torch-calculate-electrostatic-potential`.
 
 ## Usage
 
@@ -72,13 +65,13 @@ volume = compute_volume_over_insertable_matrices(
 
 ## Testing
 
-From the repo root (with the package and test deps installed):
+From a cloned repo:
 
 ```sh
 pytest
 ```
 
-or `python -m pytest`. With coverage: `pytest --cov=cryoesp --cov-report=html`. (With [uv](https://github.com/astral-sh/uv): `uv run pytest`.)
+With coverage: `pytest --cov=cryoesp --cov-report=html`. (With [uv](https://github.com/astral-sh/uv): `uv run pytest`.)
 
 **Warnings**: You may see `DeprecationWarning: torch.jit.script_method is deprecated`. These come from PyTorch internals when `torch.compile` runs; they are not from this package and can be ignored.
 
