@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import torch
 from torch.utils.checkpoint import checkpoint
 from .lattice import Lattice
@@ -7,6 +9,10 @@ from .atom_stack import AtomStack
 from .utils.peng_model import ScatteringAttributes
 from .utils.torch_utils import batched_with_indices
 from tqdm import tqdm
+
+# Precomputed constants used in every kernel call.
+_FOUR_PI_SQUARED = 4.0 * math.pi ** 2
+_FOUR_PI_THREE_HALVES = (4.0 * math.pi) ** 1.5
 
 
 
@@ -51,7 +57,7 @@ def calculate_esp(
 
     # Initialize volume and index mapping
     if subvolume_mask_in_indices is not None:
-        volume = torch.zeros((len(subvolume_mask_in_indices), 1), dtype=lattice.dtype, device=atom_stack.device)
+        volume = torch.zeros(len(subvolume_mask_in_indices), dtype=lattice.dtype, device=atom_stack.device)
         # Ensure indices are sorted for binary search (typically already sorted by lattice 'ij' convention)
         if len(subvolume_mask_in_indices) > 1 and not torch.all(subvolume_mask_in_indices[1:] >= subvolume_mask_in_indices[:-1]):
             sorted_indices, inverse_perm = torch.sort(subvolume_mask_in_indices)
@@ -59,7 +65,7 @@ def calculate_esp(
         else:
             index_mapping = (subvolume_mask_in_indices, None)
     else:
-        volume = torch.zeros((torch.prod(lattice.grid_dimensions), 1), dtype=lattice.dtype, device=atom_stack.device)
+        volume = torch.zeros(int(torch.prod(lattice.grid_dimensions).item()), dtype=lattice.dtype, device=atom_stack.device)
         index_mapping = None
     
     scattering_attributes = ScatteringAttributes(atom_stack.device)
@@ -113,12 +119,12 @@ def calculate_esp(
                 positions_clamped = torch.clamp(positions, 0, len(sorted_indices) - 1)
                 valid_mask = in_bounds & (sorted_indices[positions_clamped] == insertion_matrix_indices)
                 compact_indices = inverse_perm[positions[valid_mask]] if inverse_perm is not None else positions[valid_mask]
-                volume.scatter_add_(0, compact_indices.unsqueeze(1).to(torch.int64), insertion_matrices[valid_mask].unsqueeze(1))
+                volume.scatter_add_(0, compact_indices.to(torch.int64), insertion_matrices[valid_mask])
             else:
-                volume.scatter_add_(0, insertion_matrix_indices.reshape(-1, 1).to(torch.int64), insertion_matrices.reshape(-1, 1))
+                volume.scatter_add_(0, insertion_matrix_indices.reshape(-1).to(torch.int64), insertion_matrices.reshape(-1))
 
     if subvolume_mask_in_indices is not None:
-        return volume.squeeze(-1)
+        return volume
     else:
         return volume.reshape(tuple(lattice.grid_dimensions.tolist()))
 
@@ -132,33 +138,43 @@ def _compute_density_kernel(atom_coords, voxel_coords, a, b, B_val, occ, voxel_s
     Compute density values for atoms at voxel coordinates.
     Supports both per-voxel averaging and point-sampling modes.
     """
-    # Geometry Diff: (N, K, 3) - (N, 1, 3) -> (N, K, 3, 1)
-    diff = (voxel_coords - atom_coords.unsqueeze(1)).unsqueeze(-1)
+    # Geometry diff: (N, K, 3) — no extra trailing dim needed.
+    raw_diff = voxel_coords - atom_coords.unsqueeze(1)  # (N, K, 3)
 
-    # Ensure broadcast-friendly shapes
+    # Ensure broadcast-friendly shapes for b-factor and occupancy.
     if B_val.ndim == 1:
-        B_val = B_val.unsqueeze(-1)  # (N, 1)
+        B_val = B_val.unsqueeze(-1)  # (N,) -> (N, 1)
     if occ.ndim == 1:
-        occ = occ.unsqueeze(-1)      # (N, 1)
-    
-    if is_averaged:
-        gamma = (4 * torch.pi**2 / (b + B_val)).sqrt().unsqueeze(1)
-        v_x, v_y, v_z = voxel_sizes[0] / 2.0, voxel_sizes[1] / 2.0, voxel_sizes[2] / 2.0
-        
-        term_x = torch.erf((diff[..., 0, :] + v_x) * gamma) - torch.erf((diff[..., 0, :] - v_x) * gamma)
-        term_y = torch.erf((diff[..., 1, :] + v_y) * gamma) - torch.erf((diff[..., 1, :] - v_y) * gamma)
-        term_z = torch.erf((diff[..., 2, :] + v_z) * gamma) - torch.erf((diff[..., 2, :] - v_z) * gamma)
+        occ = occ.unsqueeze(-1)      # (N,) -> (N, 1)
 
-        spatial_integral = term_x * term_y * term_z
-        weights = (occ * a).unsqueeze(1)
-        return (spatial_integral * weights).sum(dim=-1).squeeze(-1) / (8 * voxel_sizes.prod())
+    if is_averaged:
+        # b has shape (N, 5): 5 Gaussian terms per atom from Peng 1996 parameters.
+        # B_val has shape (N, 1) after the ndim check above.
+        # gamma = sqrt(4π² / (b + B_val)): (N, 5) → unsqueeze → (N, 1, 5).
+        gamma = (_FOUR_PI_SQUARED / (b + B_val)).sqrt().unsqueeze(1)  # (N, 1, 5)
+        v_x = voxel_sizes[0] / 2.0
+        v_y = voxel_sizes[1] / 2.0
+        v_z = voxel_sizes[2] / 2.0
+
+        # Extract per-axis differences; shape (N, K, 1) for broadcasting with gamma (N, 1, 5).
+        diff_x = raw_diff[..., 0, None]
+        diff_y = raw_diff[..., 1, None]
+        diff_z = raw_diff[..., 2, None]
+
+        term_x = torch.erf((diff_x + v_x) * gamma) - torch.erf((diff_x - v_x) * gamma)
+        term_y = torch.erf((diff_y + v_y) * gamma) - torch.erf((diff_y - v_y) * gamma)
+        term_z = torch.erf((diff_z + v_z) * gamma) - torch.erf((diff_z - v_z) * gamma)
+
+        spatial_integral = term_x * term_y * term_z          # (N, K, 5)
+        weights = (occ * a).unsqueeze(1)                      # (N, 1, 5)
+        return (spatial_integral * weights).sum(dim=-1) / (8 * voxel_sizes.prod())
     else:
-        squared_distances = (diff ** 2).sum(dim=2) 
-        sigma_inv = 1.0 / (b + B_val).unsqueeze(1)
-        prefactor = (a * occ).unsqueeze(1) * (4 * torch.pi)**(3/2)
-        width_factor = sigma_inv ** (3/2)
-        term = torch.exp(-4 * torch.pi**2 * squared_distances * sigma_inv)
-        return (prefactor * width_factor * term).sum(dim=-1).squeeze(-1)
+        squared_distances = (raw_diff ** 2).sum(dim=2, keepdim=True)  # (N, K, 1)
+        sigma_inv = 1.0 / (b + B_val).unsqueeze(1)                    # (N, 1, 5)
+        prefactor = (a * occ).unsqueeze(1) * _FOUR_PI_THREE_HALVES    # (N, 1, 5)
+        width_factor = sigma_inv ** (3/2)                              # (N, 1, 5)
+        term = torch.exp(-_FOUR_PI_SQUARED * squared_distances * sigma_inv)  # (N, K, 5)
+        return (prefactor * width_factor * term).sum(dim=-1)
 
 
 def _fused_stencil_kernel(
@@ -182,7 +198,7 @@ def _fused_stencil_kernel(
     
     # Generate target indices: Anchor (N,) + Stencil (K,) -> (N, K)
     target_indices = anchor_indices_flat.view(-1, 1) + stencil_indices_flat.view(1, -1)
-    volume.scatter_add_(0, target_indices.view(-1, 1), values.view(-1, 1))
+    volume.scatter_add_(0, target_indices.view(-1), values.view(-1))
 
 
 # Create separate compiled functions for each boolean value to avoid torch.compile specialization issues
@@ -209,8 +225,49 @@ def _fused_stencil_kernel_point_sampled(
     )
 
 
-_compiled_stencil_kernel_averaged = torch.compile(_fused_stencil_kernel_averaged, mode="max-autotune", dynamic=True)
-_compiled_stencil_kernel_point_sampled = torch.compile(_fused_stencil_kernel_point_sampled, mode="max-autotune", dynamic=True)
+# Lazy-compile the stencil kernels on first use so that module import never
+# fails even when the inductor backend is unavailable (e.g. certain nightly
+# builds).  Compilation is attempted once per (kernel, averaged) pair; on
+# failure a warning is emitted and the uncompiled function is used instead.
+_compiled_kernel_cache: dict = {}
+
+
+def _get_compiled_stencil_kernel(averaged: bool):
+    key = ("stencil", averaged)
+    if key not in _compiled_kernel_cache:
+        fn = _fused_stencil_kernel_averaged if averaged else _fused_stencil_kernel_point_sampled
+        try:
+            _compiled_kernel_cache[key] = torch.compile(fn, mode="max-autotune", dynamic=True)
+        except Exception as exc:
+            import warnings
+            warnings.warn(
+                f"torch.compile failed ({type(exc).__name__}: {exc}); "
+                "falling back to uncompiled stencil kernel. "
+                "GPU performance may be reduced.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _compiled_kernel_cache[key] = fn
+    return _compiled_kernel_cache[key]
+
+
+def _get_compiled_multi_volume_kernel(averaged: bool):
+    key = ("multi", averaged)
+    if key not in _compiled_kernel_cache:
+        fn = _fused_multi_volume_kernel_averaged if averaged else _fused_multi_volume_kernel_point_sampled
+        try:
+            _compiled_kernel_cache[key] = torch.compile(fn, mode="max-autotune", dynamic=True)
+        except Exception as exc:
+            import warnings
+            warnings.warn(
+                f"torch.compile failed ({type(exc).__name__}: {exc}); "
+                "falling back to uncompiled multi-volume kernel. "
+                "GPU performance may be reduced.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _compiled_kernel_cache[key] = fn
+    return _compiled_kernel_cache[key]
 
 
 def _fused_multi_volume_kernel(
@@ -220,7 +277,7 @@ def _fused_multi_volume_kernel(
     batch_offsets,           # (Total_Atoms,) integer offsets = volume_id * GridSize
     stencil_coords,          # (K, 3)
     stencil_indices_flat,    # (K,)
-    volume,                  # (B * GridSize, 1)
+    volume,                  # (B * GridSize,)
     a, b, B_val, occ, voxel_sizes, is_averaged
 ):
     """
@@ -236,7 +293,7 @@ def _fused_multi_volume_kernel(
         + batch_offsets.view(-1, 1)
     )
 
-    volume.scatter_add_(0, target_indices.view(-1, 1), values.view(-1, 1))
+    volume.scatter_add_(0, target_indices.view(-1), values.view(-1))
 
 
 # Create separate compiled functions for each boolean value to avoid torch.compile specialization issues
@@ -260,10 +317,6 @@ def _fused_multi_volume_kernel_point_sampled(
         atom_batch, anchor_coords, anchor_indices_flat, batch_offsets,
         stencil_coords, stencil_indices_flat, volume, a, b, B_val, occ, voxel_sizes, False
     )
-
-
-_compiled_multi_volume_kernel_averaged = torch.compile(_fused_multi_volume_kernel_averaged, mode="max-autotune", dynamic=True)
-_compiled_multi_volume_kernel_point_sampled = torch.compile(_fused_multi_volume_kernel_point_sampled, mode="max-autotune", dynamic=True)
 
 
 def calculate_esp_stencil_compiled(
@@ -307,7 +360,7 @@ def calculate_esp_stencil_compiled(
             "Use calculate_esp instead."
         )
 
-    volume = torch.zeros((torch.prod(lattice.grid_dimensions), 1), dtype=lattice.dtype, device=atom_stack.device)
+    volume = torch.zeros(int(torch.prod(lattice.grid_dimensions).item()), dtype=lattice.dtype, device=atom_stack.device)
     scattering_attributes = ScatteringAttributes(atom_stack.device)
 
     flat_stencil = lattice.convert_cubic_index_to_flat_index(lattice.sublattice_cubic_indices).contiguous()
@@ -332,7 +385,7 @@ def calculate_esp_stencil_compiled(
 
             a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
-            compiled_kernel = _compiled_stencil_kernel_averaged if per_voxel_averaging else _compiled_stencil_kernel_point_sampled
+            compiled_kernel = _get_compiled_stencil_kernel(per_voxel_averaging)
             compiled_kernel(
                 atom_batch,
                 anchor_coord,
@@ -432,7 +485,7 @@ def setup_batch_esp_calculator(
         B_volumes = B_vol
 
         # Select the appropriate compiled kernel based on per_voxel_averaging
-        compiled_multi_kernel = _compiled_multi_volume_kernel_averaged if per_voxel_averaging else _compiled_multi_volume_kernel_point_sampled
+        compiled_multi_kernel = _get_compiled_multi_volume_kernel(per_voxel_averaging)
 
         with torch.no_grad():
             anchor_flat, anchor_coord = lattice.get_stencil_anchor_translations(atoms_flat)
@@ -441,7 +494,7 @@ def setup_batch_esp_calculator(
         a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
         volume = torch.zeros(
-            (B_volumes * grid_size, 1), dtype=lattice.dtype, device=atoms_flat.device
+            B_volumes * grid_size, dtype=lattice.dtype, device=atoms_flat.device
         )
         compiled_multi_kernel(
             atoms_flat,
@@ -504,8 +557,8 @@ def setup_batch_esp_calculator(
         batch_offsets = batch_offsets.contiguous()
         
         # Select the appropriate compiled kernel based on per_voxel_averaging
-        compiled_multi_kernel = _compiled_multi_volume_kernel_averaged if per_voxel_averaging else _compiled_multi_volume_kernel_point_sampled
-        
+        compiled_multi_kernel = _get_compiled_multi_volume_kernel(per_voxel_averaging)
+
         with torch.no_grad():
             anchor_flat, anchor_coord = lattice.get_stencil_anchor_translations(atoms_flat)
             atoms_flat = atoms_flat.contiguous()
@@ -513,7 +566,7 @@ def setup_batch_esp_calculator(
         a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
         volume = torch.zeros(
-            (B_volumes * grid_size, 1), dtype=lattice.dtype, device=atoms_flat.device
+            B_volumes * grid_size, dtype=lattice.dtype, device=atoms_flat.device
         )
         compiled_multi_kernel(
             atoms_flat, anchor_coord, anchor_flat, batch_offsets,
