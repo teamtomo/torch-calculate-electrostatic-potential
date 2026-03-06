@@ -2,9 +2,9 @@
 Tests for ESP (Electrostatic Potential) calculator functions.
 
 Tests cover:
-1. compute_esp (standard)
-2. compute_esp_stencil_compiled (fused single volume)
-3. setup_esp_batch_calculator -> compute_batch (fused multiple volumes)
+1. calculate_esp (standard)
+2. calculate_esp_stencil_compiled (fused single volume)
+3. setup_batch_esp_calculator -> compute_batch (fused multiple volumes)
 
 Uses 8OSK.pdb for tests that require real atom coordinates within lattice bounds.
 Same lattice parameters as original: pixel_size 0.845, padding 10, sublattice_radius 5.0.
@@ -21,9 +21,9 @@ import gemmi
 from espcalculator import (
     AtomStack,
     Lattice,
-    compute_esp,
-    compute_esp_stencil_compiled,
-    setup_esp_batch_calculator,
+    calculate_esp,
+    calculate_esp_stencil_compiled,
+    setup_batch_esp_calculator,
 )
 
 
@@ -119,12 +119,12 @@ def get_small_lattice(atom_stack):
 # ---------------------------------------------------------------------------
 
 class TestESPCalculatorStandard:
-    """Tests for compute_esp (standard function)."""
+    """Tests for calculate_esp (standard function)."""
 
     def test_single_batch_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume = compute_esp(
+        volume = calculate_esp(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -141,7 +141,7 @@ class TestESPCalculatorStandard:
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
-        volume = compute_esp(
+        volume = calculate_esp(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -156,7 +156,7 @@ class TestESPCalculatorStandard:
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
-        volume = compute_esp(
+        volume = calculate_esp(
             atom_stack=batched_stack,
             lattice=small_lattice,
             B=32,
@@ -172,7 +172,7 @@ class TestESPCalculatorStandard:
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         batched_stack.occupancies = torch.tensor([0.5, 0.3, 0.2], device="cpu")
-        volume = compute_esp(
+        volume = calculate_esp(
             atom_stack=batched_stack,
             lattice=small_lattice,
             B=32,
@@ -186,7 +186,7 @@ class TestESPCalculatorStandard:
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume_avg = compute_esp(
+        volume_avg = calculate_esp(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -194,7 +194,7 @@ class TestESPCalculatorStandard:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        volume_point = compute_esp(
+        volume_point = calculate_esp(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -216,7 +216,7 @@ class TestESPCalculatorStandard:
             bfactors=None,
             device="cpu",
         )
-        volume = compute_esp(
+        volume = calculate_esp(
             atom_stack=empty_stack,
             lattice=small_lattice,
             B=32,
@@ -233,12 +233,12 @@ class TestESPCalculatorStandard:
 # ---------------------------------------------------------------------------
 
 class TestESPCalculatorFusedSingle:
-    """Tests for compute_esp_stencil_compiled (fused single volume)."""
+    """Tests for calculate_esp_stencil_compiled (fused single volume)."""
 
     def test_single_batch_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume = compute_esp_stencil_compiled(
+        volume = calculate_esp_stencil_compiled(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -255,7 +255,7 @@ class TestESPCalculatorFusedSingle:
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
-        volume = compute_esp_stencil_compiled(
+        volume = calculate_esp_stencil_compiled(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -270,7 +270,7 @@ class TestESPCalculatorFusedSingle:
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
-        volume = compute_esp_stencil_compiled(
+        volume = calculate_esp_stencil_compiled(
             atom_stack=batched_stack,
             lattice=small_lattice,
             B=32,
@@ -286,7 +286,7 @@ class TestESPCalculatorFusedSingle:
         small_lattice = get_small_lattice(small_atom_stack)
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         batched_stack.occupancies = torch.tensor([0.5, 0.3, 0.2], device="cpu")
-        volume = compute_esp_stencil_compiled(
+        volume = calculate_esp_stencil_compiled(
             atom_stack=batched_stack,
             lattice=small_lattice,
             B=32,
@@ -300,7 +300,7 @@ class TestESPCalculatorFusedSingle:
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume_avg = compute_esp_stencil_compiled(
+        volume_avg = calculate_esp_stencil_compiled(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -308,7 +308,7 @@ class TestESPCalculatorFusedSingle:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        volume_point = compute_esp_stencil_compiled(
+        volume_point = calculate_esp_stencil_compiled(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -326,7 +326,7 @@ class TestESPCalculatorFusedSingle:
         small_lattice = get_small_lattice(small_atom_stack)
         mask = torch.tensor([0, 1, 2, 3], dtype=torch.int64)
         try:
-            compute_esp_stencil_compiled(
+            calculate_esp_stencil_compiled(
                 atom_stack=small_atom_stack,
                 lattice=small_lattice,
                 B=32,
@@ -344,12 +344,12 @@ class TestESPCalculatorFusedSingle:
 # ---------------------------------------------------------------------------
 
 class TestESPCalculatorFusedMultiple:
-    """Tests for setup_esp_batch_calculator -> compute_batch (fused multiple volumes)."""
+    """Tests for setup_batch_esp_calculator -> compute_batch (fused multiple volumes)."""
 
     def test_single_volume_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -364,7 +364,7 @@ class TestESPCalculatorFusedMultiple:
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -390,7 +390,7 @@ class TestESPCalculatorFusedMultiple:
             device="cpu",
             occupancies=torch.tensor([1.0], device="cpu"),
         )
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -406,7 +406,7 @@ class TestESPCalculatorFusedMultiple:
         batched_stack1.occupancies = torch.tensor([0.6, 0.4], device="cpu")
         batched_stack2 = small_atom_stack.replicate_ensemble(B=2)
         batched_stack2.occupancies = torch.tensor([0.7, 0.3], device="cpu")
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -423,7 +423,7 @@ class TestESPCalculatorFusedMultiple:
         stack1.occupancies = torch.tensor([0.6, 0.4], device="cpu")
         stack2 = small_atom_stack.replicate_ensemble(B=2)
         stack2.occupancies = torch.tensor([0.8, 0.2], device="cpu")
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -435,12 +435,12 @@ class TestESPCalculatorFusedMultiple:
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        compute_batch_avg, _ = setup_esp_batch_calculator(
+        compute_batch_avg, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        compute_batch_point, _ = setup_esp_batch_calculator(
+        compute_batch_point, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=False,
@@ -463,7 +463,7 @@ class TestESPCalculatorConsistency:
     def test_standard_vs_fused_single(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume_standard = compute_esp(
+        volume_standard = calculate_esp(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -471,7 +471,7 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        volume_fused = compute_esp_stencil_compiled(
+        volume_fused = calculate_esp_stencil_compiled(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -488,7 +488,7 @@ class TestESPCalculatorConsistency:
     def test_standard_vs_fused_multiple_single_volume(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume_standard = compute_esp(
+        volume_standard = calculate_esp(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -496,7 +496,7 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -512,7 +512,7 @@ class TestESPCalculatorConsistency:
     def test_fused_single_vs_fused_multiple_single_volume(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        volume_fused_single = compute_esp_stencil_compiled(
+        volume_fused_single = calculate_esp_stencil_compiled(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             B=32,
@@ -520,7 +520,7 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        compute_batch, _ = setup_esp_batch_calculator(
+        compute_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -545,7 +545,7 @@ class TestESPCalculatorConsistency:
         )
         batched_stack = small_atom_stack.replicate_ensemble(B=2)
         batched_stack.occupancies = torch.tensor([0.6, 0.4], device="cpu")
-        volume1 = compute_esp(
+        volume1 = calculate_esp(
             atom_stack=stack1,
             lattice=small_lattice,
             B=32,
@@ -553,7 +553,7 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        volume_batched = compute_esp(
+        volume_batched = calculate_esp(
             atom_stack=batched_stack,
             lattice=small_lattice,
             B=32,
@@ -575,7 +575,7 @@ class TestESPCalculatorConsistency:
         )
         batched_stack = small_atom_stack.replicate_ensemble(B=3)
         batched_stack.occupancies = torch.tensor([1.0 / 3, 1.0 / 3, 1.0 / 3], device="cpu")
-        volume_single = compute_esp(
+        volume_single = calculate_esp(
             atom_stack=single_stack,
             lattice=small_lattice,
             B=32,
@@ -583,7 +583,7 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        volume_batched = compute_esp(
+        volume_batched = calculate_esp(
             atom_stack=batched_stack,
             lattice=small_lattice,
             B=32,
@@ -693,7 +693,7 @@ class TestExampleLatticeFusedVsNonfused:
             device="cpu",
         )
 
-        volume_nonfused = compute_esp(
+        volume_nonfused = calculate_esp(
             atom_stack=atom_stack,
             lattice=lattice,
             B=32,
@@ -701,7 +701,7 @@ class TestExampleLatticeFusedVsNonfused:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        volume_fused = compute_esp_stencil_compiled(
+        volume_fused = calculate_esp_stencil_compiled(
             atom_stack=atom_stack,
             lattice=lattice,
             B=32,
@@ -723,7 +723,7 @@ class TestComputeBatchFromCoords:
     def test_compute_batch_from_coords_matches_compute_batch(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        compute_batch, compute_batch_from_coords = setup_esp_batch_calculator(
+        compute_batch, compute_batch_from_coords = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -743,7 +743,7 @@ class TestComputeBatchFromCoords:
     def test_compute_batch_from_coords_multiple_hypotheses(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        compute_batch, compute_batch_from_coords = setup_esp_batch_calculator(
+        compute_batch, compute_batch_from_coords = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,

@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 
-def compute_esp(
+def calculate_esp(
         atom_stack: AtomStack,
         lattice: Lattice,
         B: int = 64,
@@ -24,7 +24,7 @@ def compute_esp(
 
     Dense formulation with optional subvolume masks. Backprop through this path is
     memory-intensive; for gradient-based optimization (e.g. density alignment)
-    use `compute_esp_stencil_compiled` instead (faster and lower VRAM).
+    use `calculate_esp_stencil_compiled` instead (faster and lower VRAM).
 
     Parameters
     ----------
@@ -266,7 +266,7 @@ _compiled_multi_volume_kernel_averaged = torch.compile(_fused_multi_volume_kerne
 _compiled_multi_volume_kernel_point_sampled = torch.compile(_fused_multi_volume_kernel_point_sampled, mode="max-autotune", dynamic=True)
 
 
-def compute_esp_stencil_compiled(
+def calculate_esp_stencil_compiled(
     atom_stack,
     lattice,
     B: int = 4096,
@@ -279,7 +279,7 @@ def compute_esp_stencil_compiled(
 
     Specifically designed for backprop VRAM optimization. Uses anchor+stencil
     pattern and torch.compile. No subvolume masks; for those use
-    compute_esp.
+    calculate_esp.
 
     Parameters
     ----------
@@ -304,7 +304,7 @@ def compute_esp_stencil_compiled(
     if subvolume_mask_in_indices is not None:
         raise NotImplementedError(
             "Subvolume masks are not supported with stencil-based computation. "
-            "Use compute_esp instead."
+            "Use calculate_esp instead."
         )
 
     volume = torch.zeros((torch.prod(lattice.grid_dimensions), 1), dtype=lattice.dtype, device=atom_stack.device)
@@ -350,7 +350,7 @@ def compute_esp_stencil_compiled(
     return volume.reshape(tuple(lattice.grid_dimensions.tolist()))
 
 
-def setup_esp_batch_calculator(
+def setup_batch_esp_calculator(
     atom_stack,
     lattice,
     per_voxel_averaging: bool = True,

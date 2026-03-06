@@ -7,7 +7,11 @@ import torch
 
 
 class Lattice:
-    """3D lattice with sublattice support for efficient ESP computation."""
+    """3D lattice for ESP volume computation.
+
+    Main complexity parameter: sublattice_radius_in_A (Å). Scale with B-factors
+    and voxel size. Single value; per-axis voxel counts from voxel_sizes_in_A.
+    """
 
     def __init__(
         self,

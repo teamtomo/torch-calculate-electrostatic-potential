@@ -8,11 +8,10 @@ Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D
 
 ## Features
 
-- **compute_esp**: Dense ESP computation. Backprop through this path is memory-heavy; use the stencil path when you need gradients. Complexity is $O(N_{\text{atoms}} \cdot D_x D_y D_z)$, where $D_x$, $D_y$, $D_z$ are the side lengths of the insertable matrix (sublattice).
-- **compute_esp_stencil_compiled**: Compiled stencil-based ESP (`torch.compile`). Designed for backprop VRAM optimization.
-- **setup_esp_batch_calculator**: Builds a callable for multiple ESP volumes. Returns `(compute_batch, compute_batch_from_coords)`, where `compute_batch` takes a list of `AtomStack` objects and `compute_batch_from_coords` works directly from coordinate tensors. Preferred when the forward pass is run many times over the same type and size of structures (e.g. density alignment).
-
-Use the stencil / batch path when you need gradients; the dense path is memory-heavy for backprop.
+- **calculate_esp**: Dense ESP computation. Backprop through this path is memory-heavy; use the stencil path when you need gradients. Complexity is $O(N_{\text{atoms}} \cdot D_x D_y D_z)$, where $D_x$, $D_y$, $D_z$ are the side lengths of the insertable matrix (sublattice).
+- **calculate_esp_stencil_compiled**: Compiled stencil-based ESP (`torch.compile`). Designed for backprop VRAM optimization.
+- **setup_batch_esp_calculator**: Builds a callable for multiple ESP volumes. Returns `(compute_batch, compute_batch_from_coords)`, where `compute_batch` takes a list of `AtomStack` objects and `compute_batch_from_coords` works directly from coordinate tensors. Preferred when the forward pass is run many times over the same type and size of structures (e.g. density alignment).
+- **Lattice**: Main complexity parameter is `sublattice_radius_in_A` (Å). Scale with B-factors and voxel size; single value, per-axis voxel counts derived from `voxel_sizes_in_A`.
 
 ## Installation
 
@@ -36,7 +35,7 @@ Create an `AtomStack` from coordinates and atom names, then compute a single ESP
 
 ```python
 import torch
-from espcalculator import AtomStack, Lattice, compute_esp
+from espcalculator import AtomStack, Lattice, calculate_esp
 
 # Create AtomStack (coordinates in Angstroms, shape [B, N, 3])
 coords = torch.tensor([[[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [0.0, 1.5, 0.0]]])  # 3 atoms
@@ -44,7 +43,9 @@ atom_names = ["C", "N", "O"]
 atom_stack = AtomStack.from_coords_and_names(coords, atom_names, device="cpu")
 atom_stack.fill_constant_bfactor(8 * 3.14159**2 * 0.5**2)  # B-factor in Å²
 
-# Create lattice
+# Create lattice. sublattice_radius_in_A is the main complexity lever: larger = more voxels per atom.
+# It should scale with B-factors and voxel size (e.g. larger radius for larger B or finer voxels).
+# One value in Å for all dimensions; per-axis voxel counts are derived from voxel_sizes_in_A.
 lattice = Lattice.from_voxel_sizes_and_corner_points(
     voxel_sizes_in_A=(1.0, 1.0, 1.0),
     left_bottom_point_in_A=(-5.0, -5.0, -5.0),
@@ -54,7 +55,7 @@ lattice = Lattice.from_voxel_sizes_and_corner_points(
 )
 
 # Compute ESP volume (dense path)
-esp_volume = compute_esp(
+esp_volume = calculate_esp(
     atom_stack=atom_stack,
     lattice=lattice,
     B=64,
@@ -67,10 +68,10 @@ esp_volume = compute_esp(
 Single volume with the stencil-compiled path (backprop-friendly):
 
 ```python
-from espcalculator import compute_esp_stencil_compiled
+from espcalculator import calculate_esp_stencil_compiled
 
 # Re-use atom_stack and lattice from above
-esp_volume = compute_esp_stencil_compiled(
+esp_volume = calculate_esp_stencil_compiled(
     atom_stack=atom_stack,
     lattice=lattice,
     B=4096,
@@ -83,10 +84,10 @@ esp_volume = compute_esp_stencil_compiled(
 For multiple ESP volumes in one call (batch calculator):
 
 ```python
-from espcalculator import setup_esp_batch_calculator
+from espcalculator import setup_batch_esp_calculator
 
 # Re-use atom_stack and lattice from above
-compute_batch, compute_batch_from_coords = setup_esp_batch_calculator(
+compute_batch, compute_batch_from_coords = setup_batch_esp_calculator(
     atom_stack=atom_stack,
     lattice=lattice,
     per_voxel_averaging=True,

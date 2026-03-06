@@ -5,9 +5,9 @@ from importlib.metadata import PackageNotFoundError, version
 from .atom_stack import AtomStack
 from .lattice import Lattice
 from .cryoesp_calculator import (
-    compute_esp,
-    compute_esp_stencil_compiled,
-    setup_esp_batch_calculator,
+    calculate_esp,
+    calculate_esp_stencil_compiled,
+    setup_batch_esp_calculator,
 )
 
 try:
@@ -18,8 +18,8 @@ except PackageNotFoundError:
 __all__ = [
     "AtomStack",
     "Lattice",
-    "compute_esp",
-    "compute_esp_stencil_compiled",
-    "setup_esp_batch_calculator",
+    "calculate_esp",
+    "calculate_esp_stencil_compiled",
+    "setup_batch_esp_calculator",
     "__version__",
 ]
