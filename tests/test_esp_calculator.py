@@ -4,7 +4,7 @@ Tests for ESP (Electrostatic Potential) calculator functions.
 Tests cover:
 1. calculate_esp (standard)
 2. calculate_esp_stencil_compiled (fused single volume)
-3. setup_batch_esp_calculator -> calculate_batch (fused multiple volumes)
+3. setup_batch_esp_calculator -> calculate_esp_batch (fused multiple volumes)
 
 Uses 8OSK.pdb for tests that require real atom coordinates within lattice bounds.
 Same lattice parameters as original: pixel_size 0.845, padding 10, sublattice_radius 5.0.
@@ -344,17 +344,17 @@ class TestESPCalculatorFusedSingle:
 # ---------------------------------------------------------------------------
 
 class TestESPCalculatorFusedMultiple:
-    """Tests for setup_batch_esp_calculator -> calculate_batch (fused multiple volumes)."""
+    """Tests for setup_batch_esp_calculator -> calculate_esp_batch (fused multiple volumes)."""
 
     def test_single_volume_no_occupancies(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes = calculate_batch([small_atom_stack])
+        volumes = calculate_esp_batch([small_atom_stack])
         assert volumes.shape == (1,) + tuple(small_lattice.grid_dimensions.tolist())
         assert volumes.dtype == torch.float32
         assert torch.all(volumes >= 0.0)
@@ -364,12 +364,12 @@ class TestESPCalculatorFusedMultiple:
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
         small_atom_stack.occupancies = torch.tensor([1.0], device="cpu")
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes = calculate_batch([small_atom_stack])
+        volumes = calculate_esp_batch([small_atom_stack])
         assert volumes.shape == (1,) + tuple(small_lattice.grid_dimensions.tolist())
         assert volumes[0].sum() > 0
 
@@ -390,12 +390,12 @@ class TestESPCalculatorFusedMultiple:
             device="cpu",
             occupancies=torch.tensor([1.0], device="cpu"),
         )
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes = calculate_batch([stack1, stack2])
+        volumes = calculate_esp_batch([stack1, stack2])
         assert volumes.shape == (2,) + tuple(small_lattice.grid_dimensions.tolist())
         assert torch.allclose(volumes[0], volumes[1], atol=1e-5)
 
@@ -406,12 +406,12 @@ class TestESPCalculatorFusedMultiple:
         batched_stack1.occupancies = torch.tensor([0.6, 0.4], device="cpu")
         batched_stack2 = small_atom_stack.replicate_ensemble(B=2)
         batched_stack2.occupancies = torch.tensor([0.7, 0.3], device="cpu")
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes = calculate_batch([batched_stack1, batched_stack2])
+        volumes = calculate_esp_batch([batched_stack1, batched_stack2])
         assert volumes.shape == (2,) + tuple(small_lattice.grid_dimensions.tolist())
         assert volumes[0].sum() > 0
         assert volumes[1].sum() > 0
@@ -423,30 +423,30 @@ class TestESPCalculatorFusedMultiple:
         stack1.occupancies = torch.tensor([0.6, 0.4], device="cpu")
         stack2 = small_atom_stack.replicate_ensemble(B=2)
         stack2.occupancies = torch.tensor([0.8, 0.2], device="cpu")
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes = calculate_batch([stack1, stack2])
+        volumes = calculate_esp_batch([stack1, stack2])
         assert volumes.shape == (2,) + tuple(small_lattice.grid_dimensions.tolist())
         assert torch.allclose(volumes[0], volumes[1], atol=1e-4)
 
     def test_per_voxel_averaging_vs_point_sampling(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        calculate_batch_avg, _ = setup_batch_esp_calculator(
+        calculate_esp_batch_avg, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        calculate_batch_point, _ = setup_batch_esp_calculator(
+        calculate_esp_batch_point, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=False,
         )
-        volumes_avg = calculate_batch_avg([small_atom_stack])
-        volumes_point = calculate_batch_point([small_atom_stack])
+        volumes_avg = calculate_esp_batch_avg([small_atom_stack])
+        volumes_point = calculate_esp_batch_point([small_atom_stack])
         assert volumes_avg.shape == volumes_point.shape
         assert not torch.allclose(volumes_avg[0], volumes_point[0], atol=1e-6)
         assert volumes_avg[0].sum() > 0
@@ -496,12 +496,12 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes_fused = calculate_batch([small_atom_stack])
+        volumes_fused = calculate_esp_batch([small_atom_stack])
         volume_fused = volumes_fused[0]
         assert volume_standard.shape == volume_fused.shape
         max_diff = (volume_standard - volume_fused).abs().max()
@@ -520,12 +520,12 @@ class TestESPCalculatorConsistency:
             subvolume_mask_in_indices=None,
             verbose=False,
         )
-        calculate_batch, _ = setup_batch_esp_calculator(
+        calculate_esp_batch, _ = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes_fused = calculate_batch([small_atom_stack])
+        volumes_fused = calculate_esp_batch([small_atom_stack])
         volume_fused_multiple = volumes_fused[0]
         assert volume_fused_single.shape == volume_fused_multiple.shape
         max_diff = (volume_fused_single - volume_fused_multiple).abs().max()
@@ -714,36 +714,36 @@ class TestExampleLatticeFusedVsNonfused:
 
 
 # ---------------------------------------------------------------------------
-# TestCalculateEspBatchedFromCoords
+# TestCalculateEspBatchFromCoords
 # ---------------------------------------------------------------------------
 
-class TestCalculateEspBatchedFromCoords:
-    """Tests for calculate_esp_batched_from_coords (vectorized coord-based volume computation)."""
+class TestCalculateEspBatchFromCoords:
+    """Tests for calculate_esp_batch_from_coords (vectorized coord-based volume computation)."""
 
-    def test_calculate_esp_batched_from_coords_matches_calculate_batch(self):
+    def test_calculate_esp_batch_from_coords_matches_calculate_esp_batch(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        calculate_batch, calculate_esp_batched_from_coords = setup_batch_esp_calculator(
+        calculate_esp_batch, calculate_esp_batch_from_coords = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
         )
-        volumes_method1 = calculate_batch([small_atom_stack])
+        volumes_method1 = calculate_esp_batch([small_atom_stack])
         coords = small_atom_stack.atom_coordinates
         bfactors = small_atom_stack.bfactors
         atomic_numbers = small_atom_stack.atomic_numbers
         occupancies = small_atom_stack.occupancies
         coords_batch = coords.unsqueeze(0)  # [1, B_ens, N, 3]
-        volumes_method2 = calculate_esp_batched_from_coords(
+        volumes_method2 = calculate_esp_batch_from_coords(
             coords_batch, bfactors, atomic_numbers, occupancies
         )
         assert volumes_method1.shape == volumes_method2.shape
         assert torch.allclose(volumes_method1, volumes_method2, atol=1e-5)
 
-    def test_calculate_esp_batched_from_coords_multiple_hypotheses(self):
+    def test_calculate_esp_batch_from_coords_multiple_hypotheses(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        calculate_batch, calculate_esp_batched_from_coords = setup_batch_esp_calculator(
+        calculate_esp_batch, calculate_esp_batch_from_coords = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -759,7 +759,7 @@ class TestCalculateEspBatchedFromCoords:
         bfactors = small_atom_stack.bfactors
         atomic_numbers = small_atom_stack.atomic_numbers
         occupancies = small_atom_stack.occupancies
-        volumes = calculate_esp_batched_from_coords(
+        volumes = calculate_esp_batch_from_coords(
             coords_batch, bfactors, atomic_numbers, occupancies
         )
         assert volumes.shape[0] == 3
@@ -771,5 +771,5 @@ class TestCalculateEspBatchedFromCoords:
                 device=coords.device,
                 occupancies=occupancies,
             )
-            vol_single = calculate_batch([transformed_stack])
+            vol_single = calculate_esp_batch([transformed_stack])
             assert torch.allclose(volumes[hyp_idx], vol_single[0], atol=1e-5), f"Hypothesis {hyp_idx} mismatch"

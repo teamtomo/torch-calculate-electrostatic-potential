@@ -8,10 +8,10 @@ Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D
 
 ## Features
 
-- **calculate_esp**: Dense ESP computation. Backprop through this path is memory-heavy; use the stencil path when you need gradients. Complexity is $O(N_{\text{atoms}} \cdot D_x D_y D_z)$, where the dimensions $D_x$, $D_y$, $D_z$ are the side lengths of the insertable matrix (sublattice).
+- **calculate_esp**: Dense ESP computation. Backprop through this path is memory-heavy; use the stencil path when you need gradients of large structures and/or volumes. Complexity is $O(N_{\text{atoms}} \cdot D_x D_y D_z)$, where the dimensions $D_x$, $D_y$, $D_z$ are the dimensions of the per-atom insertable matrix—the local region where the forward model for each atom is evaluated and inserted (`scatter_add`) into the big output volume.
 - **calculate_esp_stencil_compiled**: Compiled stencil-based ESP (`torch.compile`). Designed for backprop VRAM optimization.
-- **setup_batch_esp_calculator**: Builds a callable for multiple ESP volumes. Returns `(calculate_batch, calculate_esp_batched_from_coords)`, where `calculate_batch` takes a list of `AtomStack` objects and `calculate_esp_batched_from_coords` works directly from coordinate tensors. Preferred when the forward pass is run many times over the same type and size of structures (e.g. density alignment).
-- **Lattice**: Defines the metaparameters of the resulting volume—resolution (`voxel_sizes_in_A`) and spatial extent (corner points). It affects computational cost the most: complexity scales with higher resolution and thus bigger dimensions $D_x$, $D_y$, $D_z$. Increase `sublattice_radius_in_A` (Å) when B-factors are high or voxel sizes are low.
+- **setup_batch_esp_calculator**: Builds a callable for multiple ESP volumes. Returns `(calculate_esp_batch, calculate_esp_batch_from_coords)`, where `calculate_esp_batch` takes a list of `AtomStack` objects and `calculate_esp_batch_from_coords` works directly from coordinate tensors. Preferred when the forward pass is run many times over the same type and size of structures (e.g. density alignment).
+- **Lattice**: Defines the metaparameters of the resulting volume—resolution (`voxel_sizes_in_A`) and spatial extent (corner points). The parameter `sublattice_radius_in_A` (Å) affects computational cost the most: it sets the dimensions $D_x$, $D_y$, $D_z$  of the per-atom insertable matrix. Increase it when B-factors are high or voxel sizes are low.
 
 ## Installation
 
@@ -87,14 +87,14 @@ For multiple ESP volumes in one call (batch calculator):
 from espcalculator import setup_batch_esp_calculator
 
 # Re-use atom_stack and lattice from above
-calculate_batch, calculate_esp_batched_from_coords = setup_batch_esp_calculator(
+calculate_esp_batch, calculate_esp_batch_from_coords = setup_batch_esp_calculator(
     atom_stack=atom_stack,
     lattice=lattice,
     per_voxel_averaging=True,
 )
 
 # Example: two hypotheses with the same structure
-volumes = calculate_batch([atom_stack, atom_stack])
+volumes = calculate_esp_batch([atom_stack, atom_stack])
 # volumes shape: (2, Dx, Dy, Dz)
 ```
 

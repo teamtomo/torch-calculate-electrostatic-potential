@@ -10,9 +10,10 @@ class Lattice:
     """3D lattice for ESP volume computation.
 
     Defines the metaparameters of the resulting volume: resolution (voxel_sizes_in_A)
-    and spatial extent (corner points). It affects computational cost the most:
-    complexity scales with higher resolution and thus bigger dimensions D_x, D_y, D_z.
-    Increase sublattice_radius_in_A (Å) when B-factors are high or voxel sizes are low.
+    and spatial extent (corner points). The parameter sublattice_radius_in_A (Å)
+    affects computational cost the most: it sets the dimensions of the per-atom
+    insertable matrix where the forward model is evaluated and inserted into the
+    big volume. Increase it when B-factors are high or voxel sizes are low.
     """
 
     def __init__(
