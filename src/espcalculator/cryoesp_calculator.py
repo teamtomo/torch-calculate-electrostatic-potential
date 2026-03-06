@@ -366,7 +366,7 @@ def setup_batch_esp_calculator(
     - `calculate_batch(atom_stacks)`: list of `AtomStack`, one per output volume.
       Each `AtomStack` has shape `(B_ensemble, N, 3)`; all ensemble members are
       accumulated into that volume using its occupancies.
-    - `calculate_batch_from_coords(coords_batch, bfactors, atomic_numbers, occupancies)`:
+    - `calculate_esp_batched_from_coords(coords_batch, bfactors, atomic_numbers, occupancies)`:
       fully vectorized variant that works directly on tensors.
     """
     Dx, Dy, Dz = lattice.grid_dimensions
@@ -459,7 +459,7 @@ def setup_batch_esp_calculator(
         )
         return volume.view(B_volumes, Dx, Dy, Dz)
 
-    def calculate_batch_from_coords(
+    def calculate_esp_batched_from_coords(
         coords_batch: torch.Tensor,      # [k, B_ens, N, 3] pre-transformed coordinates
         bfactors: torch.Tensor,          # [B_ens, N, 1] shared across hypotheses
         atomic_numbers: torch.Tensor,    # [N, 1] shared across hypotheses
@@ -523,4 +523,4 @@ def setup_batch_esp_calculator(
         )
         return volume.view(B_volumes, Dx, Dy, Dz)
 
-    return calculate_batch, calculate_batch_from_coords
+    return calculate_batch, calculate_esp_batched_from_coords

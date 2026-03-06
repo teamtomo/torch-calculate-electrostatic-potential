@@ -714,16 +714,16 @@ class TestExampleLatticeFusedVsNonfused:
 
 
 # ---------------------------------------------------------------------------
-# TestCalculateBatchFromCoords
+# TestCalculateEspBatchedFromCoords
 # ---------------------------------------------------------------------------
 
-class TestCalculateBatchFromCoords:
-    """Tests for calculate_batch_from_coords (vectorized coord-based volume computation)."""
+class TestCalculateEspBatchedFromCoords:
+    """Tests for calculate_esp_batched_from_coords (vectorized coord-based volume computation)."""
 
-    def test_calculate_batch_from_coords_matches_calculate_batch(self):
+    def test_calculate_esp_batched_from_coords_matches_calculate_batch(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        calculate_batch, calculate_batch_from_coords = setup_batch_esp_calculator(
+        calculate_batch, calculate_esp_batched_from_coords = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -734,16 +734,16 @@ class TestCalculateBatchFromCoords:
         atomic_numbers = small_atom_stack.atomic_numbers
         occupancies = small_atom_stack.occupancies
         coords_batch = coords.unsqueeze(0)  # [1, B_ens, N, 3]
-        volumes_method2 = calculate_batch_from_coords(
+        volumes_method2 = calculate_esp_batched_from_coords(
             coords_batch, bfactors, atomic_numbers, occupancies
         )
         assert volumes_method1.shape == volumes_method2.shape
         assert torch.allclose(volumes_method1, volumes_method2, atol=1e-5)
 
-    def test_calculate_batch_from_coords_multiple_hypotheses(self):
+    def test_calculate_esp_batched_from_coords_multiple_hypotheses(self):
         small_atom_stack = get_small_atom_stack()
         small_lattice = get_small_lattice(small_atom_stack)
-        calculate_batch, calculate_batch_from_coords = setup_batch_esp_calculator(
+        calculate_batch, calculate_esp_batched_from_coords = setup_batch_esp_calculator(
             atom_stack=small_atom_stack,
             lattice=small_lattice,
             per_voxel_averaging=True,
@@ -759,7 +759,7 @@ class TestCalculateBatchFromCoords:
         bfactors = small_atom_stack.bfactors
         atomic_numbers = small_atom_stack.atomic_numbers
         occupancies = small_atom_stack.occupancies
-        volumes = calculate_batch_from_coords(
+        volumes = calculate_esp_batched_from_coords(
             coords_batch, bfactors, atomic_numbers, occupancies
         )
         assert volumes.shape[0] == 3

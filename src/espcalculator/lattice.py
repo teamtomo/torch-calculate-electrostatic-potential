@@ -10,11 +10,9 @@ class Lattice:
     """3D lattice for ESP volume computation.
 
     Defines the metaparameters of the resulting volume: resolution (voxel_sizes_in_A)
-    and spatial extent (corner points). It affects output quality the most.
-    Grid dimensions D_x, D_y, D_z are derived approximately from
-    (right_upper_point_in_A - left_bottom_point_in_A) / voxel_sizes_in_A + 1.
-    Main complexity lever: sublattice_radius_in_A (Å). Scale with B-factors and
-    voxel size; single value, per-axis sublattice voxel counts from voxel_sizes_in_A.
+    and spatial extent (corner points). It affects computational cost the most:
+    complexity scales with higher resolution and thus bigger dimensions D_x, D_y, D_z.
+    Increase sublattice_radius_in_A (Å) when B-factors are high or voxel sizes are low.
     """
 
     def __init__(
