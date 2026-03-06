@@ -148,6 +148,9 @@ def _compute_density_kernel(atom_coords, voxel_coords, a, b, B_val, occ, voxel_s
         occ = occ.unsqueeze(-1)      # (N,) -> (N, 1)
 
     if is_averaged:
+        # b has shape (N, 5): 5 Gaussian terms per atom from Peng 1996 parameters.
+        # B_val has shape (N, 1) after the ndim check above.
+        # gamma = sqrt(4π² / (b + B_val)): (N, 5) → unsqueeze → (N, 1, 5).
         gamma = (_FOUR_PI_SQUARED / (b + B_val)).sqrt().unsqueeze(1)  # (N, 1, 5)
         v_x = voxel_sizes[0] / 2.0
         v_y = voxel_sizes[1] / 2.0
@@ -224,8 +227,8 @@ def _fused_stencil_kernel_point_sampled(
 
 # Lazy-compile the stencil kernels on first use so that module import never
 # fails even when the inductor backend is unavailable (e.g. certain nightly
-# builds).  A try/except at compile time lets the rest of the code run on
-# CPU without torch.compile if compilation fails.
+# builds).  Compilation is attempted once per (kernel, averaged) pair; on
+# failure a warning is emitted and the uncompiled function is used instead.
 _compiled_kernel_cache: dict = {}
 
 
@@ -235,7 +238,15 @@ def _get_compiled_stencil_kernel(averaged: bool):
         fn = _fused_stencil_kernel_averaged if averaged else _fused_stencil_kernel_point_sampled
         try:
             _compiled_kernel_cache[key] = torch.compile(fn, mode="max-autotune", dynamic=True)
-        except Exception:
+        except Exception as exc:
+            import warnings
+            warnings.warn(
+                f"torch.compile failed ({type(exc).__name__}: {exc}); "
+                "falling back to uncompiled stencil kernel. "
+                "GPU performance may be reduced.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             _compiled_kernel_cache[key] = fn
     return _compiled_kernel_cache[key]
 
@@ -246,7 +257,15 @@ def _get_compiled_multi_volume_kernel(averaged: bool):
         fn = _fused_multi_volume_kernel_averaged if averaged else _fused_multi_volume_kernel_point_sampled
         try:
             _compiled_kernel_cache[key] = torch.compile(fn, mode="max-autotune", dynamic=True)
-        except Exception:
+        except Exception as exc:
+            import warnings
+            warnings.warn(
+                f"torch.compile failed ({type(exc).__name__}: {exc}); "
+                "falling back to uncompiled multi-volume kernel. "
+                "GPU performance may be reduced.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             _compiled_kernel_cache[key] = fn
     return _compiled_kernel_cache[key]
 
