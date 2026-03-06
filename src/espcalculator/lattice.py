@@ -9,8 +9,12 @@ import torch
 class Lattice:
     """3D lattice for ESP volume computation.
 
-    Main complexity parameter: sublattice_radius_in_A (Å). Scale with B-factors
-    and voxel size. Single value; per-axis voxel counts from voxel_sizes_in_A.
+    Defines the metaparameters of the resulting volume: resolution (voxel_sizes_in_A)
+    and spatial extent (corner points). It affects output quality the most.
+    Grid dimensions D_x, D_y, D_z are derived approximately from
+    (right_upper_point_in_A - left_bottom_point_in_A) / voxel_sizes_in_A + 1.
+    Main complexity lever: sublattice_radius_in_A (Å). Scale with B-factors and
+    voxel size; single value, per-axis sublattice voxel counts from voxel_sizes_in_A.
     """
 
     def __init__(
