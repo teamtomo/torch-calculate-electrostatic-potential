@@ -4,7 +4,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.9%20--%203.14-blue)](https://python.org)
 [![CI](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml/badge.svg)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml)
 
-Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D ESP volumes from atom coordinates using Peng 1996 scattering factors.
+Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D ESP volumes from atom coordinates using Peng 1996 scattering factors. Uses efficient per-atom computations and CUDA-optimized stencil-based compiled kernels.
 
 ## Features
 
