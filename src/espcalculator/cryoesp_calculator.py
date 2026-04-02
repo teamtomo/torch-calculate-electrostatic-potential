@@ -167,12 +167,11 @@ def _fused_stencil_kernel(
     anchor_indices_flat,         # (N, 1) [Translation vector for indices, flattened]
     stencil_coords,              # (K, 3) [Sublattice shape constant]
     stencil_indices_flat,        # (K, 1) [Sublattice indices constant]
-    volume, 
     a, b, B_val, occ, voxel_sizes, is_averaged
 ):
     """
     Fused kernel that generates voxel coordinates and indices on-the-fly using anchor+stencil pattern.
-    Computes density values and scatters them directly to the volume tensor.
+    Computes target indices and density values.
     """
     # Generate voxel coordinates: Anchor (N, 3) + Stencil (K, 3) -> (N, K, 3)
     generated_voxels = anchor_coords.unsqueeze(1) + stencil_coords.unsqueeze(0)
@@ -182,30 +181,30 @@ def _fused_stencil_kernel(
     
     # Generate target indices: Anchor (N,) + Stencil (K,) -> (N, K)
     target_indices = anchor_indices_flat.view(-1, 1) + stencil_indices_flat.view(1, -1)
-    volume.scatter_add_(0, target_indices.view(-1, 1), values.view(-1, 1))
+    return target_indices.view(-1, 1), values.view(-1, 1)
 
 
 # Create separate compiled functions for each boolean value to avoid torch.compile specialization issues
 # torch.compile treats Python booleans as compile-time constants, so we need separate compiled versions
 def _fused_stencil_kernel_averaged(
     atom_batch, anchor_coords, anchor_indices_flat, stencil_coords, stencil_indices_flat,
-    volume, a, b, B_val, occ, voxel_sizes
+    a, b, B_val, occ, voxel_sizes
 ):
     """Wrapper with is_averaged=True baked in."""
     return _fused_stencil_kernel(
         atom_batch, anchor_coords, anchor_indices_flat, stencil_coords, stencil_indices_flat,
-        volume, a, b, B_val, occ, voxel_sizes, True
+        a, b, B_val, occ, voxel_sizes, True
     )
 
 
 def _fused_stencil_kernel_point_sampled(
     atom_batch, anchor_coords, anchor_indices_flat, stencil_coords, stencil_indices_flat,
-    volume, a, b, B_val, occ, voxel_sizes
+    a, b, B_val, occ, voxel_sizes
 ):
     """Wrapper with is_averaged=False baked in."""
     return _fused_stencil_kernel(
         atom_batch, anchor_coords, anchor_indices_flat, stencil_coords, stencil_indices_flat,
-        volume, a, b, B_val, occ, voxel_sizes, False
+        a, b, B_val, occ, voxel_sizes, False
     )
 
 
@@ -220,7 +219,6 @@ def _fused_multi_volume_kernel(
     batch_offsets,           # (Total_Atoms,) integer offsets = volume_id * GridSize
     stencil_coords,          # (K, 3)
     stencil_indices_flat,    # (K,)
-    volume,                  # (B * GridSize, 1)
     a, b, B_val, occ, voxel_sizes, is_averaged
 ):
     """
@@ -236,29 +234,29 @@ def _fused_multi_volume_kernel(
         + batch_offsets.view(-1, 1)
     )
 
-    volume.scatter_add_(0, target_indices.view(-1, 1), values.view(-1, 1))
+    return target_indices.view(-1, 1), values.view(-1, 1)
 
 
 # Create separate compiled functions for each boolean value to avoid torch.compile specialization issues
 def _fused_multi_volume_kernel_averaged(
     atom_batch, anchor_coords, anchor_indices_flat, batch_offsets,
-    stencil_coords, stencil_indices_flat, volume, a, b, B_val, occ, voxel_sizes
+    stencil_coords, stencil_indices_flat, a, b, B_val, occ, voxel_sizes
 ):
     """Wrapper with is_averaged=True baked in."""
     return _fused_multi_volume_kernel(
         atom_batch, anchor_coords, anchor_indices_flat, batch_offsets,
-        stencil_coords, stencil_indices_flat, volume, a, b, B_val, occ, voxel_sizes, True
+        stencil_coords, stencil_indices_flat, a, b, B_val, occ, voxel_sizes, True
     )
 
 
 def _fused_multi_volume_kernel_point_sampled(
     atom_batch, anchor_coords, anchor_indices_flat, batch_offsets,
-    stencil_coords, stencil_indices_flat, volume, a, b, B_val, occ, voxel_sizes
+    stencil_coords, stencil_indices_flat, a, b, B_val, occ, voxel_sizes
 ):
     """Wrapper with is_averaged=False baked in."""
     return _fused_multi_volume_kernel(
         atom_batch, anchor_coords, anchor_indices_flat, batch_offsets,
-        stencil_coords, stencil_indices_flat, volume, a, b, B_val, occ, voxel_sizes, False
+        stencil_coords, stencil_indices_flat, a, b, B_val, occ, voxel_sizes, False
     )
 
 
@@ -333,19 +331,19 @@ def calculate_esp_stencil_compiled(
             a_jk, b_jk = scattering_attributes(atom_identities_batch)
 
             compiled_kernel = _compiled_stencil_kernel_averaged if per_voxel_averaging else _compiled_stencil_kernel_point_sampled
-            compiled_kernel(
+            target_indices, values = compiled_kernel(
                 atom_batch,
                 anchor_coord,
                 anchor_flat,
                 stencil_coords,
                 flat_stencil,
-                volume,
                 a_jk,
                 b_jk,
                 bfactor_batch,
                 occupancy,
                 lattice.voxel_sizes_in_A,
             )
+            volume.scatter_add_(0, target_indices.to(torch.int64), values.to(volume.dtype))
 
     return volume.reshape(tuple(lattice.grid_dimensions.tolist()))
 
@@ -443,20 +441,20 @@ def setup_batch_esp_calculator(
         volume = torch.zeros(
             (B_volumes * grid_size, 1), dtype=lattice.dtype, device=atoms_flat.device
         )
-        compiled_multi_kernel(
+        target_indices, values = compiled_multi_kernel(
             atoms_flat,
             anchor_coord,
             anchor_flat,
             batch_offsets,
             stencil_coords,
             flat_stencil,
-            volume,
             a_jk,
             b_jk,
             bfactor_batch,
             occupancy_vec,
             lattice.voxel_sizes_in_A,
         )
+        volume.scatter_add_(0, target_indices.to(torch.int64), values.to(volume.dtype))
         return volume.view(B_volumes, Dx, Dy, Dz)
 
     def calculate_esp_batch_from_coords(
@@ -515,12 +513,13 @@ def setup_batch_esp_calculator(
         volume = torch.zeros(
             (B_volumes * grid_size, 1), dtype=lattice.dtype, device=atoms_flat.device
         )
-        compiled_multi_kernel(
+        target_indices, values = compiled_multi_kernel(
             atoms_flat, anchor_coord, anchor_flat, batch_offsets,
-            stencil_coords, flat_stencil, volume,
+            stencil_coords, flat_stencil,
             a_jk, b_jk, bfactor_batch, occupancy_vec,
             lattice.voxel_sizes_in_A,
         )
+        volume.scatter_add_(0, target_indices.to(torch.int64), values.to(volume.dtype))
         return volume.view(B_volumes, Dx, Dy, Dz)
 
     return calculate_esp_batch, calculate_esp_batch_from_coords
