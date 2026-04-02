@@ -1,8 +1,8 @@
 # torch-calculate-electrostatic-potential
 
-[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.9%20--%203.14-blue)](https://python.org)
-[![CI](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml/badge.svg)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/teamtomo/torch-calculate-electrostatic-potential?style=flat-square)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/blob/main/LICENSE)
+[![Python Version](https://img.shields.io/badge/python-3.9%20--%203.14-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![CI](https://img.shields.io/github/actions/workflow/status/teamtomo/torch-calculate-electrostatic-potential/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml)
 
 Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D ESP volumes from atom coordinates using Peng 1996 scattering factors. Uses efficient per-atom computations and CUDA-optimized stencil-based compiled kernels.
 
