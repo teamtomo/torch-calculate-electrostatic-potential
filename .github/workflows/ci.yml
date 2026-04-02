@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v4
@@ -41,33 +41,3 @@ jobs:
       run: |
         uv run pytest --cov=espcalculator --cov-report=term
 
-  test-py314-nightly:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python 3.14
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.14"
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
-
-    - name: Install package with nightly torch
-      run: |
-        uv venv
-        uv pip install --python .venv/bin/python --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
-        uv pip install --python .venv/bin/python -e ".[test]"
-
-    - name: Verify installation
-      run: |
-        uv run --python .venv/bin/python python -c "import espcalculator; print('✓ Package installed (3.14 nightly)')"
-        uv run --python .venv/bin/python pytest --version
-
-    - name: Run tests with coverage
-      run: |
-        uv run --python .venv/bin/python pytest --cov=espcalculator --cov-report=term
