@@ -45,17 +45,6 @@ dev = [{ include-group = "test" }]
 [project.urls]
 repository = "https://github.com/teamtomo/torch-calculate-electrostatic-potential"
 
-# PyTorch nightly index for Python 3.14+ (torch.compile support)
-[[tool.uv.index]]
-name = "pytorch-nightly"
-url = "https://download.pytorch.org/whl/nightly/cpu"
-explicit = true
-
-# For Python 3.14+, use PyTorch nightly builds which support torch.compile
-[tool.uv.sources.torch]
-index = "pytorch-nightly"
-marker = "python_version >= '3.14'"
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/espcalculator"]
 
