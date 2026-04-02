@@ -1,6 +1,7 @@
 # torch-calculate-electrostatic-potential
 
-[![License](https://img.shields.io/github/license/teamtomo/torch-calculate-electrostatic-potential?style=flat-square)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/teamtomo/torch-calculate-electrostatic-potential?style=flat-square&color=blue&label=license)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/blob/main/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/torch-calculate-electrostatic-potential?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/torch-calculate-electrostatic-potential/)
 [![Python Version](https://img.shields.io/badge/python-3.9%20--%203.14-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![CI](https://img.shields.io/github/actions/workflow/status/teamtomo/torch-calculate-electrostatic-potential/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/teamtomo/torch-calculate-electrostatic-potential/actions/workflows/ci.yml)
 
@@ -16,14 +17,12 @@ Cryo-EM Electrostatic Potential (ESP) calculator built with PyTorch. Computes 3D
 ## Installation
 
 ```sh
-# From GitHub (main branch)
-pip install git+https://github.com/teamtomo/torch-calculate-electrostatic-potential.git
+# From PyPI (after first release)
+pip install torch-calculate-electrostatic-potential
 ```
 
-### Python 3.14+
-
 ```sh
-pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
+# Development install from GitHub (main branch)
 pip install git+https://github.com/teamtomo/torch-calculate-electrostatic-potential.git
 ```
 
@@ -114,7 +113,7 @@ With coverage: `pytest --cov=espcalculator --cov-report=html`.
 ## Requirements
 
 - Python >= 3.9
-- PyTorch >= 2.0 (nightly for Python 3.14+)
+- PyTorch >= 2.0
 - gemmi, numpy, tqdm
 
 ## License
